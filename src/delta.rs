@@ -832,12 +832,13 @@ mod compose_tests {
 
     use serde_json::Value;
 
-    use crate::{
-        collections,
-        op::{Op, EMBED_CODE},
-    };
+    use crate::{collections, op::Op};
 
     use super::Delta;
+
+    // 0 length white space
+    // placeholder for embedded in diff (no implementation so far)
+    const EMBED_CODE: u32 = 0x200b;
 
     fn empty_embed() -> Value {
         Value::from(char::from_u32(EMBED_CODE).unwrap().to_string())

@@ -5,10 +5,6 @@ use serde_json::Value;
 
 use crate::attributes::AttributesMap;
 
-// 0 length white space
-// placeholder for embedded in diff (no implementation so far)
-pub const EMBED_CODE: u32 = 0x200b;
-
 /// An error related to [Delta]s
 #[derive(Debug)]
 pub struct Error {
@@ -34,7 +30,7 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-/// Kind operation that [Delta]s support
+/// Kind operation that Deltas support
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum OpType {
@@ -44,7 +40,7 @@ pub enum OpType {
     DELETE(usize),
 }
 
-/// An operation in a [Delta].
+/// An operation in a Delta.
 ///
 /// Operations materialize a change to be applied to a state and results in a new state
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
