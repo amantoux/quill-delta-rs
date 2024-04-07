@@ -42,19 +42,19 @@ impl Delta {
     ///
     /// ```
     /// use serde_json::Value;
-    /// use quill_delta_rs::{delta::Delta, collections, op::Op};
+    /// use quill_delta_rs::{delta::Delta, attributes::{attributes, AttributesMap}, op::Op};
     ///
     /// let mut delta = Delta::new();
     /// delta
-    ///     .insert("a".into(), Some(collections!("bold" => Value::Bool(true))))
+    ///     .insert("a".into(), Some(attributes!("bold" => true)))
     ///     .delete(3)
     ///     .push(Op::insert(
     ///         "b".into(),
-    ///         Some(collections!("bold"=>Value::Bool(true))),
+    ///         Some(attributes!("bold" => true)),
     ///     ));
     /// assert_eq!(2, delta.ops().len());
     /// assert_eq!(
-    ///     Op::insert("ab".into(), Some(collections!("bold" => Value::Bool(true)))),
+    ///     Op::insert("ab".into(), Some(attributes!("bold" => true))),
     ///     delta.ops()[0],
     /// );
     /// ```
@@ -138,7 +138,7 @@ impl Delta {
     ///
     /// ```
     /// use serde_json::Value;
-    /// use quill_delta_rs::{collections, delta::Delta};
+    /// use quill_delta_rs::delta::Delta;
     ///
     /// let mut delta = Delta::new();
     /// delta.insert("Test".into(), None).retain(4, None);
@@ -535,7 +535,10 @@ impl Display for Delta {
 mod push_tests {
     use serde_json::Value;
 
-    use crate::{collections, op::Op};
+    use crate::{
+        attributes::{attributes, AttributesMap},
+        op::Op,
+    };
 
     use super::Delta;
 
@@ -568,15 +571,12 @@ mod push_tests {
     fn push_insert_on_insert_with_matching_attributes_plus_delete() {
         let mut delta = Delta::new();
         delta
-            .insert("a".into(), Some(collections!("bold" => Value::Bool(true))))
+            .insert("a".into(), Some(attributes!("bold" => true)))
             .delete(3)
-            .push(Op::insert(
-                "b".into(),
-                Some(collections!("bold"=>Value::Bool(true))),
-            ));
+            .push(Op::insert("b".into(), Some(attributes!("bold" => true))));
         assert_eq!(2, delta.ops().len());
         assert_eq!(
-            Op::insert("ab".into(), Some(collections!("bold" => Value::Bool(true)))),
+            Op::insert("ab".into(), Some(attributes!("bold" => true))),
             delta.ops()[0],
         );
     }
@@ -585,22 +585,16 @@ mod push_tests {
     fn push_insert_on_insert_with_different_attributes_plus_delete() {
         let mut delta = Delta::new();
         delta
-            .insert("a".into(), Some(collections!("bold" => Value::Bool(true))))
+            .insert("a".into(), Some(attributes!("bold" => true)))
             .delete(3)
-            .push(Op::insert(
-                "b".into(),
-                Some(collections!("italic"=>Value::Bool(true))),
-            ));
+            .push(Op::insert("b".into(), Some(attributes!("italic" => true))));
         assert_eq!(3, delta.ops().len());
         assert_eq!(
-            Op::insert("a".into(), Some(collections!("bold" => Value::Bool(true)))),
+            Op::insert("a".into(), Some(attributes!("bold" => true))),
             delta.ops()[0],
         );
         assert_eq!(
-            Op::insert(
-                "b".into(),
-                Some(collections!("italic" => Value::Bool(true)))
-            ),
+            Op::insert("b".into(), Some(attributes!("italic" => true))),
             delta.ops()[1],
         );
         assert_eq!(Op::delete(3), delta.ops()[2],);
@@ -628,14 +622,11 @@ mod push_tests {
     fn push_consecutive_text_matching_attributes() {
         let mut delta = Delta::new();
         delta
-            .insert("a".into(), Some(collections!("bold" => Value::Bool(true))))
-            .push(Op::insert(
-                "b".into(),
-                Some(collections!("bold"=>Value::Bool(true))),
-            ));
+            .insert("a".into(), Some(attributes!("bold" => true)))
+            .push(Op::insert("b".into(), Some(attributes!("bold" => true))));
         assert_eq!(1, delta.ops().len());
         assert_eq!(
-            Op::insert("ab".into(), Some(collections!("bold" => Value::Bool(true)))),
+            Op::insert("ab".into(), Some(attributes!("bold" => true))),
             delta.ops()[0],
         );
     }
@@ -644,14 +635,11 @@ mod push_tests {
     fn push_consecutive_retain_matching_attributes() {
         let mut delta = Delta::new();
         delta
-            .retain(1, Some(collections!("bold" => Value::Bool(true))))
-            .push(Op::retain(
-                3,
-                Some(collections!("bold" => Value::Bool(true))),
-            ));
+            .retain(1, Some(attributes!("bold" => true)))
+            .push(Op::retain(3, Some(attributes!("bold" => true))));
         assert_eq!(1, delta.ops().len());
         assert_eq!(
-            Op::retain(4, Some(collections!("bold" =>  Value::Bool(true)))),
+            Op::retain(4, Some(attributes!("bold" => true))),
             delta.ops()[0],
         );
     }
@@ -660,11 +648,8 @@ mod push_tests {
     fn push_consecutive_test_different_attributes() {
         let mut delta = Delta::new();
         delta
-            .insert("a".into(), Some(collections!("bold" => Value::Bool(true))))
-            .push(Op::insert(
-                "b".into(),
-                Some(collections!("italic" => Value::Bool(true))),
-            ));
+            .insert("a".into(), Some(attributes!("bold" => true)))
+            .push(Op::insert("b".into(), Some(attributes!("italic" => true))));
         assert_eq!(2, delta.ops().len());
     }
 
@@ -672,20 +657,20 @@ mod push_tests {
     fn push_consecutive_retain_different_attributes() {
         let mut delta = Delta::new();
         delta
-            .retain(2, Some(collections!("bold" => Value::Bool(true))))
-            .push(Op::retain(
-                3,
-                Some(collections!("italic" => Value::Bool(true))),
-            ));
+            .retain(2, Some(attributes!("bold" => true)))
+            .push(Op::retain(3, Some(attributes!("italic" => true))));
         assert_eq!(2, delta.ops().len());
     }
 }
 
 #[cfg(test)]
 mod helpers_tests {
-    use serde_json::{json, Value};
+    use serde_json::json;
 
-    use crate::{collections, op::Op};
+    use crate::{
+        attributes::{attributes, AttributesMap},
+        op::Op,
+    };
 
     use super::Delta;
 
@@ -717,7 +702,7 @@ mod helpers_tests {
         let mut delta = Delta::new();
         delta
             .insert("Test".into(), None)
-            .retain(4, Some(collections!("bold" => Value::Bool(true))));
+            .retain(4, Some(attributes!("bold" => true)));
         assert_eq!(&delta.clone(), delta.chop())
     }
 
@@ -803,11 +788,11 @@ mod helpers_tests {
         delta.insert("Test".into(), None);
         let original = Delta::from(delta.ops.clone());
         let mut concat = Delta::new();
-        concat.insert("!".into(), Some(collections!("bold" => true.into())));
+        concat.insert("!".into(), Some(attributes!("bold" => true)));
         let mut expected = Delta::new();
         expected
             .insert("Test".into(), None)
-            .insert("!".into(), Some(collections!("bold" => true.into())));
+            .insert("!".into(), Some(attributes!("bold" => true)));
         assert_eq!(expected, delta.concat(concat));
         assert_eq!(original, delta);
     }
@@ -815,12 +800,12 @@ mod helpers_tests {
     #[test]
     fn concat_mergeable() {
         let mut delta = Delta::new();
-        delta.insert("Test".into(), Some(collections!("bold" => true.into())));
+        delta.insert("Test".into(), Some(attributes!("bold" => true)));
         let original = delta.clone();
         let mut concat = Delta::new();
-        concat.insert("!".into(), Some(collections!("bold" => true.into())));
+        concat.insert("!".into(), Some(attributes!("bold" => true)));
         let mut expected = Delta::new();
-        expected.insert("Test!".into(), Some(collections!("bold" => true.into())));
+        expected.insert("Test!".into(), Some(attributes!("bold" => true)));
         assert_eq!(expected, delta.concat(concat));
         assert_eq!(original, delta)
     }
@@ -832,7 +817,10 @@ mod compose_tests {
 
     use serde_json::Value;
 
-    use crate::{collections, op::Op};
+    use crate::{
+        attributes::{attributes, AttributesMap},
+        op::Op,
+    };
 
     use super::Delta;
 
@@ -857,18 +845,15 @@ mod compose_tests {
         let a = Delta::from(vec![Op::insert("A".into(), None)]);
         let b = Delta::from(vec![Op::retain(
             1,
-            Some(collections!(
-                "bold" => true.into(),
-                "color" => "red".into(),
-                "font" => Value::Null
+            Some(attributes!(
+                "bold" => true,
+                "color" => "red",
+                "font" => None::<&str>
             )),
         )]);
         let expected = Delta::from(vec![Op::insert(
             "A".into(),
-            Some(collections!(
-                "bold" => true.into(),
-                "color" => "red".into()
-            )),
+            Some(attributes!("bold" => true, "color" => "red")),
         )]);
         assert_eq!(expected, a.compose(&b))
     }
@@ -893,14 +878,11 @@ mod compose_tests {
         let a = Delta::from(vec![Op::delete(1)]);
         let b = Delta::from(vec![Op::retain(
             1,
-            Some(collections!("bold" => true.into(), "color" => "red".into())),
+            Some(attributes!("bold" => true, "color" => "red")),
         )]);
         let expected = Delta::from(vec![
             Op::delete(1),
-            Op::retain(
-                1,
-                Some(collections!("bold" => true.into(), "color" => "red".into())),
-            ),
+            Op::retain(1, Some(attributes!("bold" => true, "color" => "red"))),
         ]);
         assert_eq!(expected, a.compose(&b))
     }
@@ -914,38 +896,32 @@ mod compose_tests {
 
     #[test]
     fn retain_insert() {
-        let a = Delta::from(vec![Op::retain(
-            1,
-            Some(collections!("color" => "blue".into())),
-        )]);
+        let a = Delta::from(vec![Op::retain(1, Some(attributes!("color" => "blue")))]);
         let b = Delta::from(vec![Op::insert("B".into(), None)]);
         let expected = Delta::from(vec![
             Op::insert("B".into(), None),
-            Op::retain(1, Some(collections!("color" => "blue".into()))),
+            Op::retain(1, Some(attributes!("color" => "blue"))),
         ]);
         assert_eq!(expected, a.compose(&b));
     }
 
     #[test]
     fn retain_rertain() {
-        let a = Delta::from(vec![Op::retain(
-            1,
-            Some(collections!("color" => "blue".into())),
-        )]);
+        let a = Delta::from(vec![Op::retain(1, Some(attributes!("color" => "blue")))]);
         let b = Delta::from(vec![Op::retain(
             1,
-            Some(collections!(
-                "color" => "red".into(),
-                "bold" => true.into(),
-                "fonr" => Value::Null,
+            Some(attributes!(
+                "color" => "red",
+                "bold" => true,
+                "fonr" => None::<&str>,
             )),
         )]);
         let expected = Delta::from(vec![Op::retain(
             1,
-            Some(collections!(
-                "color" => "red".into(),
-                "bold" => true.into(),
-                "fonr" => Value::Null,
+            Some(attributes!(
+                "color" => "red",
+                "bold" => true,
+                "fonr" => None::<&str>,
             )),
         )]);
         assert_eq!(expected, a.compose(&b))
@@ -953,10 +929,7 @@ mod compose_tests {
 
     #[test]
     fn retain_delete() {
-        let a = Delta::from(vec![Op::retain(
-            1,
-            Some(collections!("color" => "blue".into())),
-        )]);
+        let a = Delta::from(vec![Op::retain(1, Some(attributes!("color" => "blue")))]);
         let b = Delta::from(vec![Op::delete(1)]);
         assert_eq!(Delta::from(vec![Op::delete(1)]), a.compose(&b))
     }
@@ -993,17 +966,12 @@ mod compose_tests {
     fn insert_embed() {
         let a = Delta::from(vec![Op::insert(
             empty_embed(),
-            Some(collections!("src" => "https://www.mozilla.org".into())),
+            Some(attributes!("src" => "https://www.mozilla.org")),
         )]);
-        let b = Delta::from(vec![Op::retain(
-            1,
-            Some(collections!("alt" => "Mozilla".into())),
-        )]);
+        let b = Delta::from(vec![Op::retain(1, Some(attributes!("alt" => "Mozilla")))]);
         let expected = Delta::from(vec![Op::insert(
             empty_embed(),
-            Some(
-                collections!("src" => "https://www.mozilla.org".into(), "alt" => "Mozilla".into()),
-            ),
+            Some(attributes!("src" => "https://www.mozilla.org", "alt" => "Mozilla")),
         )]);
         assert_eq!(expected, a.compose(&b));
     }
@@ -1033,11 +1001,11 @@ mod compose_tests {
     fn remove_all_attributes() {
         let a = Delta::from(vec![Op::insert(
             "A".into(),
-            Some(collections!("bold" => true.into())),
+            Some(attributes!("bold" => true)),
         )]);
         let b = Delta::from(vec![Op::retain(
             1,
-            Some(collections!("bold" => Value::Null)),
+            Some(attributes!("bold" => None::<&str>)),
         )]);
         assert_eq!(
             Delta::from(vec![Op::insert("A".into(), None)]),
@@ -1049,11 +1017,11 @@ mod compose_tests {
     fn remove_all_embed_attributes() {
         let a = Delta::from(vec![Op::insert(
             empty_embed(),
-            Some(collections!("src" => "https://mozilla.org".into())),
+            Some(attributes!("src" => "https://mozilla.org")),
         )]);
         let b = Delta::from(vec![Op::retain(
             1,
-            Some(collections!("src" => Value::Null)),
+            Some(attributes!("src" => None::<&str>)),
         )]);
         assert_eq!(
             Delta::from(vec![Op::insert(empty_embed(), None)]),
@@ -1065,26 +1033,26 @@ mod compose_tests {
     fn immutability() {
         let a1 = Delta::from(vec![Op::insert(
             "Test".into(),
-            Some(collections!("bold" => true.into())),
+            Some(attributes!("bold" => true)),
         )]);
         let a2 = Delta::from(vec![Op::insert(
             "Test".into(),
-            Some(collections!("bold" => true.into())),
+            Some(attributes!("bold" => true)),
         )]);
         let b1 = Delta::from(vec![
-            Op::retain(1, Some(collections!("color" => "red".into()))),
+            Op::retain(1, Some(attributes!("color" => "red"))),
             Op::delete(2),
         ]);
         let b2 = Delta::from(vec![
-            Op::retain(1, Some(collections!("color" => "red".into()))),
+            Op::retain(1, Some(attributes!("color" => "red"))),
             Op::delete(2),
         ]);
         let expected = Delta::from(vec![
             Op::insert(
                 "T".into(),
-                Some(collections!("color" => "red".into(), "bold" => true.into())),
+                Some(attributes!("color" => "red", "bold" => true)),
             ),
-            Op::insert("t".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("t".into(), Some(attributes!("bold" => true))),
         ]);
         assert_eq!(expected, a1.compose(&b1));
         assert_eq!(a1, a2);
@@ -1094,16 +1062,16 @@ mod compose_tests {
     #[test]
     fn retain_start_optimization() {
         let a = Delta::from(vec![
-            Op::insert("A".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("A".into(), Some(attributes!("bold" => true))),
             Op::insert("B".into(), None),
-            Op::insert("C".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("C".into(), Some(attributes!("bold" => true))),
             Op::delete(1),
         ]);
         let b = Delta::from(vec![Op::retain(3, None), Op::insert("D".into(), None)]);
         let expected = Delta::from(vec![
-            Op::insert("A".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("A".into(), Some(attributes!("bold" => true))),
             Op::insert("B".into(), None),
-            Op::insert("C".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("C".into(), Some(attributes!("bold" => true))),
             Op::insert("D".into(), None),
             Op::delete(1),
         ]);
@@ -1113,17 +1081,17 @@ mod compose_tests {
     #[test]
     fn retain_start_optimization_split() {
         let a = Delta::from(vec![
-            Op::insert("A".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("A".into(), Some(attributes!("bold" => true))),
             Op::insert("B".into(), None),
-            Op::insert("C".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("C".into(), Some(attributes!("bold" => true))),
             Op::retain(5, None),
             Op::delete(1),
         ]);
         let b = Delta::from(vec![Op::retain(4, None), Op::insert("D".into(), None)]);
         let expected = Delta::from(vec![
-            Op::insert("A".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("A".into(), Some(attributes!("bold" => true))),
             Op::insert("B".into(), None),
-            Op::insert("C".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("C".into(), Some(attributes!("bold" => true))),
             Op::retain(1, None),
             Op::insert("D".into(), None),
             Op::retain(4, None),
@@ -1135,14 +1103,14 @@ mod compose_tests {
     #[test]
     fn retain_end_optimization() {
         let a = Delta::from(vec![
-            Op::insert("A".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("A".into(), Some(attributes!("bold" => true))),
             Op::insert("B".into(), None),
-            Op::insert("C".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("C".into(), Some(attributes!("bold" => true))),
         ]);
         let b = Delta::from(vec![Op::delete(1)]);
         let expected = Delta::from(vec![
             Op::insert("B".into(), None),
-            Op::insert("C".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("C".into(), Some(attributes!("bold" => true))),
         ]);
         assert_eq!(expected, a.compose(&b));
     }
@@ -1150,17 +1118,17 @@ mod compose_tests {
     #[test]
     fn retain_end_optimization_join() {
         let a = Delta::from(vec![
-            Op::insert("A".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("A".into(), Some(attributes!("bold" => true))),
             Op::insert("B".into(), None),
-            Op::insert("C".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("C".into(), Some(attributes!("bold" => true))),
             Op::insert("D".into(), None),
-            Op::insert("E".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("E".into(), Some(attributes!("bold" => true))),
         ]);
         let b = Delta::from(vec![Op::retain(1, None), Op::delete(1)]);
         let expected = Delta::from(vec![
-            Op::insert("AC".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("AC".into(), Some(attributes!("bold" => true))),
             Op::insert("D".into(), None),
-            Op::insert("E".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("E".into(), Some(attributes!("bold" => true))),
         ]);
         assert_eq!(expected, a.compose(&b))
     }
@@ -1168,9 +1136,11 @@ mod compose_tests {
 
 #[cfg(test)]
 mod invert_tests {
-    use serde_json::Value;
 
-    use crate::{collections, op::Op};
+    use crate::{
+        attributes::{attributes, AttributesMap},
+        op::Op,
+    };
 
     use super::Delta;
 
@@ -1198,12 +1168,12 @@ mod invert_tests {
     fn retain() {
         let delta = Delta::from(vec![
             Op::retain(2, None),
-            Op::retain(3, Some(collections!("bold" => true.into()))),
+            Op::retain(3, Some(attributes!("bold" => true))),
         ]);
         let base = Delta::from(vec![Op::insert("123456".into(), None)]);
         let expected = Delta::from(vec![
             Op::retain(2, None),
-            Op::retain(3, Some(collections!("bold" => Value::Null))),
+            Op::retain(3, Some(attributes!("bold" => None::<&str>))),
         ]);
         let inverted = delta.invert(&base);
         assert_eq!(expected, inverted);
@@ -1212,17 +1182,14 @@ mod invert_tests {
 
     #[test]
     fn retain_on_delta_with_attributes() {
-        let delta = Delta::from(vec![Op::retain(
-            4,
-            Some(collections!("italic" => true.into())),
-        )]);
+        let delta = Delta::from(vec![Op::retain(4, Some(attributes!("italic" => true)))]);
         let base = Delta::from(vec![
             Op::insert("123".into(), None),
-            Op::insert("4".into(), Some(collections!("bold" => true.into()))),
+            Op::insert("4".into(), Some(attributes!("bold" => true))),
         ]);
         let expected = Delta::from(vec![Op::retain(
             4,
-            Some(collections!("italic" => Value::Null)),
+            Some(attributes!("italic" => None::<&str>)),
         )]);
         assert_eq!(expected, delta.invert(&base));
         let inverted = delta.invert(&base);
@@ -1234,35 +1201,35 @@ mod invert_tests {
         let delta = Delta::from(vec![
             Op::retain(2, None),
             Op::delete(2),
-            Op::insert("AB".into(), Some(collections!("italic" => true.into()))),
+            Op::insert("AB".into(), Some(attributes!("italic" => true))),
             Op::retain(
                 2,
-                Some(collections!("italic" => Value::Null, "bold" => true.into())),
+                Some(attributes!("italic" => None::<&str>, "bold" => true)),
             ),
-            Op::retain(2, Some(collections!("color" => "red".into()))),
+            Op::retain(2, Some(attributes!("color" => "red"))),
             Op::delete(1),
         ]);
         let base = Delta::from(vec![
-            Op::insert("123".into(), Some(collections!("bold" => true.into()))),
-            Op::insert("456".into(), Some(collections!("italic" => true.into()))),
+            Op::insert("123".into(), Some(attributes!("bold" => true))),
+            Op::insert("456".into(), Some(attributes!("italic" => true))),
             Op::insert(
                 "789".into(),
-                Some(collections!("color" => "red".into(), "bold" => true.into())),
+                Some(attributes!("color" => "red", "bold" => true)),
             ),
         ]);
         let expected = Delta::from(vec![
             Op::retain(2, None),
-            Op::insert("3".into(), Some(collections!("bold" => true.into()))),
-            Op::insert("4".into(), Some(collections!("italic" => true.into()))),
+            Op::insert("3".into(), Some(attributes!("bold" => true))),
+            Op::insert("4".into(), Some(attributes!("italic" => true))),
             Op::delete(2),
             Op::retain(
                 2,
-                Some(collections!("italic" => true.into(), "bold" => Value::Null)),
+                Some(attributes!("italic" => true, "bold" => None::<&str>)),
             ),
             Op::retain(2, None),
             Op::insert(
                 "9".into(),
-                Some(collections!("color" => "red".into(), "bold" => true.into())),
+                Some(attributes!("color" => "red", "bold" => true)),
             ),
         ]);
         assert_eq!(expected, delta.invert(&base));

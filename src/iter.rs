@@ -32,12 +32,16 @@ impl Iterator {
     /// ```
     /// use serde_json::{json, Value};
     ///
-    /// use quill_delta_rs::{collections, op::Op, iter::Iterator};
+    /// use quill_delta_rs::{
+    ///     attributes::{attributes, AttributesMap},
+    ///     op::Op,
+    ///     iter::Iterator
+    /// };
     ///
     /// let ops = vec![
     ///     Op::insert(
     ///         "Hello".into(),
-    ///         Some(collections!("bold" => Value::Bool(true))),
+    ///         Some(attributes!("bold" => true)),
     ///     ),
     ///     Op::retain(3, None),
     ///     Op::delete(4),
@@ -45,13 +49,13 @@ impl Iterator {
     /// ];
     /// let mut iter = Iterator::from(ops);
     /// assert_eq!(
-    ///     Op::insert("He".into(), Some(collections!("bold" => Value::Bool(true)))),
+    ///     Op::insert("He".into(), Some(attributes!("bold" => true))),
     ///     iter.next_len(2)
     /// );
     /// assert_eq!(
     ///     Op::insert(
     ///         "llo".into(),
-    ///         Some(collections!("bold" => Value::Bool(true)))
+    ///         Some(attributes!("bold" => true))
     ///     ),
     ///     iter.next_len(10)
     /// );
@@ -139,7 +143,7 @@ impl Iterator {
     /// use serde_json::{json, Value};
     ///
     /// use quill_delta_rs::{
-    ///     collections,
+    ///     attributes::{attributes, AttributesMap},
     ///     iter::Iterator,
     ///     op::{Op, OpType},
     /// };
@@ -147,7 +151,7 @@ impl Iterator {
     /// let ops = vec![
     ///     Op::insert(
     ///         "Hello".into(),
-    ///         Some(collections!("bold" => Value::Bool(true))),
+    ///         Some(attributes!("bold" => true)),
     ///     ),
     ///     Op::retain(3, None),
     ///     Op::delete(4),
@@ -159,7 +163,7 @@ impl Iterator {
     ///     vec![
     ///         Op::insert(
     ///             "llo".into(),
-    ///             Some(collections!("bold" => Value::Bool(true))),
+    ///             Some(attributes!("bold" => true)),
     ///         ),
     ///         Op::retain(3, None),
     ///         Op::delete(4),
@@ -201,10 +205,10 @@ impl iter::Iterator for Iterator {
 #[cfg(test)]
 mod tests {
 
-    use serde_json::{json, Value};
+    use serde_json::json;
 
     use crate::{
-        collections,
+        attributes::{attributes, AttributesMap},
         op::{Op, OpType},
     };
 
@@ -213,24 +217,18 @@ mod tests {
     #[test]
     fn next_len() {
         let ops = vec![
-            Op::insert(
-                "Hello".into(),
-                Some(collections!("bold" => Value::Bool(true))),
-            ),
+            Op::insert("Hello".into(), Some(attributes!("bold" => true))),
             Op::retain(3, None),
             Op::delete(4),
             Op::insert(json!({"key": "value"}), None),
         ];
         let mut iter = Iterator::from(ops);
         assert_eq!(
-            Op::insert("He".into(), Some(collections!("bold" => Value::Bool(true)))),
+            Op::insert("He".into(), Some(attributes!("bold" => true))),
             iter.next_len(2)
         );
         assert_eq!(
-            Op::insert(
-                "llo".into(),
-                Some(collections!("bold" => Value::Bool(true)))
-            ),
+            Op::insert("llo".into(), Some(attributes!("bold" => true))),
             iter.next_len(10)
         );
         assert_eq!(Op::retain(1, None), iter.next_len(1));
@@ -245,21 +243,15 @@ mod tests {
     fn peek() {
         let ops = vec![Op::insert(
             "Hello".into(),
-            Some(collections!("bold" => Value::Bool(true))),
+            Some(attributes!("bold" => true)),
         )];
         let mut iter = Iterator::from(ops);
         assert_eq!(
-            &Op::insert(
-                "Hello".into(),
-                Some(collections!("bold" => Value::Bool(true))),
-            ),
+            &Op::insert("Hello".into(), Some(attributes!("bold" => true)),),
             iter.peek().unwrap()
         );
         assert_eq!(
-            Op::insert(
-                "Hello".into(),
-                Some(collections!("bold" => Value::Bool(true))),
-            ),
+            Op::insert("Hello".into(), Some(attributes!("bold" => true)),),
             iter.next().unwrap()
         );
     }
@@ -268,15 +260,12 @@ mod tests {
     fn peek_len() {
         let ops = vec![Op::insert(
             "Hello".into(),
-            Some(collections!("bold" => Value::Bool(true))),
+            Some(attributes!("bold" => true)),
         )];
         let mut iter = Iterator::from(ops);
         assert_eq!("Hello".len(), iter.peek_len());
         assert_eq!(
-            Op::insert(
-                "Hello".into(),
-                Some(collections!("bold" => Value::Bool(true))),
-            ),
+            Op::insert("Hello".into(), Some(attributes!("bold" => true)),),
             iter.next().unwrap()
         );
         assert_eq!(usize::MAX, iter.peek_len());
@@ -286,15 +275,12 @@ mod tests {
     fn peek_type() {
         let ops = vec![Op::insert(
             "Hello".into(),
-            Some(collections!("bold" => Value::Bool(true))),
+            Some(attributes!("bold" => true)),
         )];
         let mut iter = Iterator::from(ops);
         assert_eq!(OpType::INSERT("Hello".into()), iter.peek_type());
         assert_eq!(
-            Op::insert(
-                "Hello".into(),
-                Some(collections!("bold" => Value::Bool(true))),
-            ),
+            Op::insert("Hello".into(), Some(attributes!("bold" => true)),),
             iter.next().unwrap()
         );
         assert_eq!(OpType::RETAIN(usize::MAX), iter.peek_type());
@@ -304,15 +290,12 @@ mod tests {
     fn has_next() {
         let ops = vec![Op::insert(
             "Hello".into(),
-            Some(collections!("bold" => Value::Bool(true))),
+            Some(attributes!("bold" => true)),
         )];
         let mut iter = Iterator::from(ops);
         assert_eq!(true, iter.has_next());
         assert_eq!(
-            Op::insert(
-                "Hello".into(),
-                Some(collections!("bold" => Value::Bool(true))),
-            ),
+            Op::insert("Hello".into(), Some(attributes!("bold" => true)),),
             iter.next().unwrap()
         );
         assert_eq!(false, iter.has_next());
@@ -321,10 +304,7 @@ mod tests {
     #[test]
     fn rest() {
         let ops = vec![
-            Op::insert(
-                "Hello".into(),
-                Some(collections!("bold" => Value::Bool(true))),
-            ),
+            Op::insert("Hello".into(), Some(attributes!("bold" => true))),
             Op::retain(3, None),
             Op::delete(4),
             Op::insert(json!({"key": "value"}), None),
@@ -333,10 +313,7 @@ mod tests {
         let _ = iter.next_len(2);
         assert_eq!(
             vec![
-                Op::insert(
-                    "llo".into(),
-                    Some(collections!("bold" => Value::Bool(true))),
-                ),
+                Op::insert("llo".into(), Some(attributes!("bold" => true)),),
                 Op::retain(3, None),
                 Op::delete(4),
                 Op::insert(json!({"key": "value"}), None),

@@ -7,6 +7,17 @@ use std::{
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[macro_export]
+macro_rules! attributes {
+    ($($k:expr => $v:expr),* $(,)?) => {
+        {
+            AttributesMap::from([$(($k, $v.into()),)*])
+        }
+    };
+}
+
+pub use attributes;
+
 /// Attributes of an operation
 ///
 /// These include any formating attribute or companion data associated with
@@ -79,26 +90,26 @@ impl AttributesMap {
     /// # Example
     ///
     /// ```
-    /// use quill_delta_rs::attributes::AttributesMap;
+    /// use quill_delta_rs::attributes::{attributes, AttributesMap};
     /// use serde_json::Value;
     ///
-    /// let mut a = AttributesMap::from([
-    ///     ("keyA", Value::from("a")),
-    ///     ("keyANull", Value::Null)
-    /// ]);
-    /// let mut b = AttributesMap::from([
-    ///     ("keyA", Value::from("ab")),
-    ///     ("keyB", Value::from("b")),
-    ///     ("keyBNull", Value::Null)
-    /// ]);
+    /// let mut a = attributes!(
+    ///     "keyA" => "a",
+    ///     "keyANull" => Value::Null
+    /// );
+    /// let mut b = attributes!(
+    ///     "keyA" => "ab",
+    ///     "keyB" => "b",
+    ///     "keyBNull" => Value::Null
+    /// );
     /// let composed = AttributesMap::diff(a, b);
     /// assert_eq!(
-    ///     Some(AttributesMap::from([
-    ///         ("keyA", Value::from("ab")),
-    ///         ("keyB", Value::from("b")),
-    ///         ("keyBNull", Value::Null),
-    ///         ("keyANull", Value::Null),
-    ///     ])),
+    ///     Some(attributes!(
+    ///         "keyA" => "ab",
+    ///         "keyB" => "b",
+    ///         "keyBNull" => Value::Null,
+    ///         "keyANull" => Value::Null,
+    ///     )),
     ///     composed
     /// );
     /// ```
@@ -133,13 +144,13 @@ impl AttributesMap {
     /// # Example
     ///
     /// ```
-    /// use quill_delta_rs::attributes::AttributesMap;
+    /// use quill_delta_rs::attributes::{attributes, AttributesMap};
     /// use serde_json::Value;
     ///
-    /// let attributes = AttributesMap::from([("bold", Value::Bool(true))]);
-    /// let base = AttributesMap::from([("italic", Value::Bool(true))]);
+    /// let attributes = attributes!("bold" => true);
+    /// let base = attributes!("italic" => true);
     /// assert_eq!(
-    ///     AttributesMap::from([("bold", Value::Null)]),
+    ///     attributes!("bold" => Value::Null),
     ///     AttributesMap::invert(attributes, base)
     /// );
     /// ```
@@ -164,21 +175,21 @@ impl AttributesMap {
     /// #Example
     ///
     /// ```
-    /// use quill_delta_rs::attributes::AttributesMap;
+    /// use quill_delta_rs::attributes::{attributes, AttributesMap};
     /// use serde_json::Value;
     ///
-    /// let left = AttributesMap::from([
-    ///     ("bold", Value::Bool(true)),
-    ///     ("color", Value::from("red")),
-    ///     ("font", Value::Null),
-    /// ]);
-    /// let right = AttributesMap::from([
-    ///     ("color", Value::from("blue")),
-    ///     ("font", Value::from("serif")),
-    ///     ("italic", Value::Bool(true)),
-    /// ]);
+    /// let left = attributes!(
+    ///     "bold" => true,
+    ///     "color" => "red",
+    ///     "font"=> Value::Null,
+    /// );
+    /// let right = attributes!(
+    ///     "color" => "blue",
+    ///     "font" => "serif",
+    ///     "italic" => true,
+    /// );
     /// assert_eq!(
-    ///     Some(AttributesMap::from([("italic", Value::Bool(true))])),
+    ///     Some(attributes!("italic" => true)),
     ///     AttributesMap::transform(left, right, true)
     /// )
     /// ```
@@ -343,10 +354,10 @@ impl<'a, const N: usize> From<[(&'a str, Value); N]> for AttributesMap {
     /// # Examples
     ///
     /// ```
-    /// use quill_delta_rs::attributes::AttributesMap;
+    /// use quill_delta_rs::attributes::{attributes,AttributesMap};
     /// use serde_json::Value;
     ///
-    /// let map1 = AttributesMap::from([("key1", Value::from(2)), ("key2", Value::from(4))]);
+    /// let map1 = attributes!("key1" => 2, "key2" => 4);
     /// let map2: AttributesMap = [("key1", Value::from(2)), ("key2", Value::from(4))].into();
     /// assert_eq!(map1, map2);
     /// ```
@@ -655,5 +666,13 @@ mod tests {
             Some(right.clone()),
             AttributesMap::transform(left, right, false)
         )
+    }
+
+    #[test]
+    fn attributes_macro() {
+        assert_eq!(
+            AttributesMap::from([("bold", true.into()), ("italic", Value::Null)]),
+            attributes!("bold" => true, "italic" => None::<&str>)
+        );
     }
 }
