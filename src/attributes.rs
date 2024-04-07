@@ -32,8 +32,8 @@ impl AttributesMap {
 
     /// Union of attributes, where conflicts are overriden by second argument
     ///
-    /// Always keeps [Value::Null] of [a]
-    /// If [keep_null] is `true`, [Value::Null] of [b] are kept
+    /// Always keeps [Value::Null] of `a`
+    /// If `keep_null` is `true`, [Value::Null] of `b` are kept
     ///
     /// # Example
     ///

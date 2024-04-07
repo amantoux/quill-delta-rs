@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use crate::attributes::AttributesMap;
 
-/// An error related to [Delta]s
+/// An error related to Deltas
 #[derive(Debug)]
 pub struct Error {
     message: String,

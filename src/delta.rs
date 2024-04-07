@@ -232,9 +232,9 @@ impl Delta {
     }
 
     /// Get a slice of the [Delta]'s operations between
-    /// a [start] inclusive index and [end] exclusive index
+    /// a `start` inclusive index and `end` exclusive index
     ///
-    /// If [end] is not specified, [usize::MAX] will be used
+    /// If `end` is not specified, [usize::MAX] will be used
     ///
     /// # Example
     ///
