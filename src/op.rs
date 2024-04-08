@@ -59,7 +59,8 @@ impl Op {
         }
     }
 
-    pub fn insert(object: Value, attributes: Option<AttributesMap>) -> Self {
+    pub fn insert<V: Into<Value>>(object: V, attributes: Option<AttributesMap>) -> Self {
+        let object = object.into();
         if !matches!(object, Value::String(_))
             && attributes.is_some()
             && !attributes.as_ref().unwrap().is_empty()

@@ -38,20 +38,21 @@ impl AttributesMap {
     /// # Example
     ///
     /// ```
-    /// use quill_delta_rs::attributes::AttributesMap;
+    /// use quill_delta_rs::attributes::{attributes,AttributesMap};
     /// use serde_json::Value;
     ///
     /// let mut a = AttributesMap::new();
-    /// a.insert("keyA".into(), "a".into());
-    /// a.insert("keyANull".into(), Value::Null);
+    /// a.insert("keyA", "a");
+    /// a.insert("keyANull", Value::Null);
     /// let mut b = AttributesMap::new();
-    /// b.insert("keyA".into(), "ab".into());
-    /// b.insert("keyB".into(), "b".into());
-    /// b.insert("keyBNull".into(), Value::Null);
+    /// b.insert("keyA", "ab");
+    /// b.insert("keyB", "b");
+    /// b.insert("keyBNull", Value::Null);
     /// let composed = AttributesMap::compose(a, b, false);
-    /// assert_eq!(composed, Some(AttributesMap::from([
-    ///   ("keyA", "ab".into()), ("keyB", "b".into()),
-    /// ])));
+    /// assert_eq!(composed, Some(attributes!(
+    ///     "keyA" => "ab",
+    ///     "keyB" => "b",
+    /// )));
     /// ```
     pub fn compose(a: AttributesMap, b: AttributesMap, keep_null: bool) -> Option<Self> {
         let mut attributes = b.clone();
@@ -118,10 +119,10 @@ impl AttributesMap {
         let mut keys: HashSet<String> = a.0.clone().into_keys().collect();
         keys.extend(b.0.clone().into_keys());
         for k in keys {
-            if a.get(&k) != b.get(&k) {
+            if a.0.get(&k) != b.0.get(&k) {
                 attributes.insert(
                     k.clone(),
-                    if let Some(value) = b.get(&k) {
+                    if let Some(value) = b.0.get(&k) {
                         value.clone()
                     } else {
                         Value::Null
@@ -157,12 +158,12 @@ impl AttributesMap {
     pub fn invert(attr: AttributesMap, base: AttributesMap) -> AttributesMap {
         let mut base_inverted = AttributesMap::new();
         for k in base.0.keys() {
-            if base.get(k) != attr.get(k) && attr.0.contains_key(k) {
+            if base.0.get(k) != attr.0.get(k) && attr.0.contains_key(k) {
                 base_inverted.insert(k.clone(), base[k].clone());
             }
         }
         for k in attr.0.keys() {
-            if attr.get(k) != base.get(k) && !base.0.contains_key(k) {
+            if attr.0.get(k) != base.0.get(k) && !base.0.contains_key(k) {
                 base_inverted.insert(k.clone(), Value::Null);
             }
         }
@@ -227,7 +228,7 @@ impl AttributesMap {
     ///
     /// let mut a = AttributesMap::new();
     /// assert!(a.is_empty());
-    /// a.insert("key".to_string(), Value::from("a"));
+    /// a.insert("key", "a");
     /// assert!(!a.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
@@ -250,34 +251,15 @@ impl AttributesMap {
     /// use serde_json::Value;
     ///
     /// let mut map = AttributesMap::new();
-    /// assert_eq!(map.insert("key".to_string(), Value::from("a")), None);
+    /// assert_eq!(map.insert("key", "a"), None);
     /// assert_eq!(map.is_empty(), false);
     ///
-    /// let key = "key".to_string();
-    /// map.insert(key.clone(), Value::from("b"));
-    /// assert_eq!(map.insert(key.clone(), Value::from("c")), Some(Value::from("b")));
-    /// assert_eq!(map[&key], Value::from("c"));
+    /// map.insert("key", "b");
+    /// assert_eq!(map.insert("key", "c"), Some(Value::from("b")));
+    /// assert_eq!(map[&String::from("key")], Value::from("c"));
     /// ```
-    pub fn insert(&mut self, key: String, value: Value) -> Option<Value> {
-        self.0.insert(key, value)
-    }
-
-    /// Returns a reference to the value corresponding to the key.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use quill_delta_rs::attributes::AttributesMap;
-    /// use serde_json::Value;
-    ///
-    /// let key = String::from("key");
-    /// let mut map = AttributesMap::new();
-    /// map.insert(key.clone(), Value::from(1));
-    /// assert_eq!(map.get(&key), Some(&Value::from(1)));
-    /// assert_eq!(map.get(&("other key".to_string())), None);
-    /// ```
-    pub fn get(&self, key: &String) -> Option<&Value> {
-        self.0.get(key)
+    pub fn insert<K: Into<String>, V: Into<Value>>(&mut self, key: K, value: V) -> Option<Value> {
+        self.0.insert(key.into(), value.into())
     }
 
     /// Removes a key from the attribute map, returning the value at the key if the key
@@ -289,9 +271,9 @@ impl AttributesMap {
     /// use quill_delta_rs::attributes::AttributesMap;
     /// use serde_json::Value;
     ///
-    /// let key = String::from("key");
     /// let mut map = AttributesMap::new();
-    /// map.insert(key.clone(), Value::from(1));
+    /// map.insert("key", 1);
+    /// let key = String::from("key");
     /// assert_eq!(map.remove(&key), Some(Value::from(1)));
     /// assert_eq!(map.remove(&key), None);
     /// ```

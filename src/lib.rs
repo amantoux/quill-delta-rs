@@ -1,3 +1,4 @@
+#[macro_use]
 pub mod attributes;
 pub mod delta;
 pub mod iter;
