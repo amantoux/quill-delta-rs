@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use crate::attributes::AttributesMap;
 
-/// An error related to [Delta]s
+/// An error related to Deltas
 #[derive(Debug)]
 pub struct Error {
     message: String,
@@ -59,7 +59,8 @@ impl Op {
         }
     }
 
-    pub fn insert(object: Value, attributes: Option<AttributesMap>) -> Self {
+    pub fn insert<V: Into<Value>>(object: V, attributes: Option<AttributesMap>) -> Self {
+        let object = object.into();
         if !matches!(object, Value::String(_))
             && attributes.is_some()
             && !attributes.as_ref().unwrap().is_empty()
@@ -222,7 +223,7 @@ mod tests {
 
     use serde_json::{json, Value};
 
-    use crate::collections;
+    use crate::attributes::{attributes, AttributesMap};
 
     use crate::op::{Op, OpType};
 
@@ -247,10 +248,7 @@ mod tests {
         });
         assert_eq!(
             serde_json::from_value::<Op>(json).unwrap(),
-            Op::insert(
-                Value::from("something"),
-                Some(collections!("key" => Value::from(1)))
-            )
+            Op::insert(Value::from("something"), Some(attributes!("key" => 1)))
         );
     }
 
@@ -283,10 +281,7 @@ mod tests {
 
     #[test]
     fn insert_string_with_attributes() {
-        let result = Op::try_insert(
-            Value::from("something"),
-            Some(collections!(String::from("b") => Value::from(true))),
-        );
+        let result = Op::try_insert(Value::from("something"), Some(attributes!("b" => true)));
         assert!(
             result.is_ok(),
             "Op::insert return an err {}",
@@ -302,10 +297,7 @@ mod tests {
             act.attributes().is_some(),
             "No attributes; attributes are expected"
         );
-        assert_eq!(
-            act.attributes().unwrap(),
-            collections!(String::from("b") => Value::from(true))
-        )
+        assert_eq!(act.attributes().unwrap(), attributes!("b" => true))
     }
 
     #[test]
@@ -341,10 +333,7 @@ mod tests {
             Value::from("http://www.wikipedia.com"),
         );
         let value = Value::Object(content);
-        let result = Op::try_insert(
-            value,
-            Some(collections!(String::from("b") => Value::from(true))),
-        );
+        let result = Op::try_insert(value, Some(attributes!("b" => true)));
         assert!(result.is_err(), "Op::insert returned ok");
     }
 
@@ -357,10 +346,7 @@ mod tests {
             Value::from("http://www.wikipedia.com"),
         );
         let value = Value::Object(content);
-        Op::insert(
-            value,
-            Some(collections!(String::from("b") => Value::from(true))),
-        );
+        Op::insert(value, Some(attributes!("b" => true)));
     }
 
     #[test]
@@ -441,10 +427,7 @@ mod tests {
 
     #[test]
     fn retain_with_attribute() {
-        let act = Op::retain(
-            3,
-            Some(collections!(String::from("b") => Value::from(true))),
-        );
+        let act = Op::retain(3, Some(attributes!("b" => true)));
         assert!(!act.is_text_insert());
         assert!(!act.is_insert());
         assert!(!act.is_delete());
@@ -455,10 +438,7 @@ mod tests {
             act.attributes().is_some(),
             "No attributes; attributes are expected"
         );
-        assert_eq!(
-            act.attributes().unwrap(),
-            collections!(String::from("b") => Value::from(true))
-        )
+        assert_eq!(act.attributes().unwrap(), attributes!("b" => true))
     }
 
     #[test]

@@ -9,19 +9,19 @@ Implementation of Quill editor Delta format in Rust. Refer to official
 ## Usage
 
 ```rust
-use quill_delta_rs::{attributes::AttributesMap, delta::Delta};
+use quill_delta_rs::{
+    attributes::{attributes, AttributesMap}, 
+    delta::Delta
+};
 
 fn main() {
     let mut doc = Delta::new();
-    doc.insert(
-        "Hello world\n".into(),
-        Some(AttributesMap::from([("h", "1".into())])),
-    );
+    doc.insert("Hello world\n", Some(attributes!("h" => "1")));
     let mut change = Delta::new();
     change
         .retain(6, None)
         .delete(6)
-        .insert("Earth\n".into(), None);
+        .insert("Earth\n", None);
     let result = doc.compose(&change);
     println!("Original document:\n{}\n", doc);
     println!("Change:\n{}\n", change);
