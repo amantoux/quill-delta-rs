@@ -1,6 +1,6 @@
 use std::{cmp::min, fmt::Display};
 
-use serde_derive::Serialize;
+use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
 /// > Deltas are a simple, yet expressive format that can be used to describe Quill's contents and changes.
 /// > The format is a strict subset of JSON, is human readable, and easily parsible by machines.
 /// > Deltas can describe any Quill document, includes all text and formatting information, without the ambiguity and complexity of HTML.
-#[derive(Default, Debug, Serialize, Clone, PartialEq)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Delta {
     ops: Vec<Op>,
 }
@@ -667,6 +667,23 @@ mod helpers_tests {
     };
 
     use super::Delta;
+
+    #[test]
+    fn deserialize() {
+        let mut exp = Delta::new();
+        exp.insert("Test", None)
+            .retain(4, Some(attributes!("bold" => true)))
+            .delete(2);
+        let input = json!({
+            "ops":[
+                {"insert": "Test"},
+                {"retain": 4, "attributes": {"bold": true}},
+                {"delete": 2}
+            ]
+        });
+        let act: Delta = serde_json::from_value(input).unwrap();
+        assert_eq!(exp, act)
+    }
 
     #[test]
     fn retain() {
