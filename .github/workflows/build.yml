@@ -4,52 +4,48 @@ on: [push, pull_request]
 
 env:
   CARGO_TERM_COLOR: always
-  SCCACHE_GHA_ENABLED: "true"
-  RUSTC_WRAPPER: "sccache"
+  RUST_VERSION: 1.88.0
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-    
-    - name: Install Rust
-      uses: actions-rs/toolchain@v1
-      with:
-          toolchain: 1.77
-          profile: minimal
-          override: true
-          target: x86_64-unknown-linux-musl
-          components: rustfmt, clippy
-    
-    - name: Run Rust Cache
-      uses: Swatinem/rust-cache@v2.6.1
+      - name: Checkout
+        uses: actions/checkout@v3
 
-    - name: Run sccache-cache
-      uses: mozilla-actions/sccache-action@v0.0.3
-    
-    - name: Formatting
-      run: cargo fmt --all -- --check
-    
-    - name: Linting
-      run: cargo clippy -- -D warnings
+      - name: Install Rust
+        run: |
+          rustup update --no-self-update stable
+          rustup install ${{ env.RUST_VERSION }} --profile minimal
+          rustup component add --toolchain ${{ env.RUST_VERSION }} rustfmt clippy
+          rustup default ${{ env.RUST_VERSION }}
 
-    - name: Build
-      run: cargo build
+      - name: Run Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "${{ env.RUST_VERSION }}"
+          cache-all-crates: "true"
 
-    - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Formatting
+        run: cargo fmt --all -- --check
 
-    - name: Generate code coverage
-      run: cargo llvm-cov --no-clean --workspace --lcov --output-path lcov.info
+      - name: Linting
+        run: cargo clippy -- -D warnings
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
-        slug: amantoux/quill-delta-rs
-        files: lcov.info
-        fail_ci_if_error: true
+      - name: Build
+        run: cargo build
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Generate code coverage
+        run: cargo llvm-cov --no-clean --workspace --lcov --output-path lcov.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+          slug: amantoux/quill-delta-rs
+          files: lcov.info
+          fail_ci_if_error: true
