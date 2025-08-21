@@ -196,7 +196,7 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        attributes::{attributes, AttributesMap},
+        attributes::{AttributesMap, attributes},
         op::{Op, OpType},
     };
 

@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::IntoIter, HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::IntoIter},
     fmt::Display,
     ops::Index,
 };

@@ -221,9 +221,9 @@ impl Display for Op {
 #[cfg(test)]
 mod tests {
 
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
 
-    use crate::attributes::{attributes, AttributesMap};
+    use crate::attributes::{AttributesMap, attributes};
 
     use crate::op::{Op, OpType};
 
