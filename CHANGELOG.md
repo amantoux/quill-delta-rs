@@ -1,3 +1,6 @@
+## 1.2.0
+- Rename ops to `delta` in (de)serialization
+
 ## 1.1.1
 - **Fix** Missing deserialization of `Delta`
 

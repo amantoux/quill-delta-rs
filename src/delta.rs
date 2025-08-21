@@ -18,6 +18,7 @@ use crate::{
 /// > Deltas can describe any Quill document, includes all text and formatting information, without the ambiguity and complexity of HTML.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Delta {
+    #[serde(rename = "delta")]
     ops: Vec<Op>,
 }
 
@@ -521,7 +522,7 @@ impl From<Vec<Op>> for Delta {
 impl Display for Delta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for op in &self.ops {
-            f.write_fmt(format_args!("{}\n", op))?;
+            f.write_fmt(format_args!("{op}\n"))?;
         }
         Ok(())
     }
@@ -532,7 +533,7 @@ mod push_tests {
     use serde_json::Value;
 
     use crate::{
-        attributes::{attributes, AttributesMap},
+        attributes::{AttributesMap, attributes},
         op::Op,
     };
 
@@ -662,7 +663,7 @@ mod helpers_tests {
     use serde_json::json;
 
     use crate::{
-        attributes::{attributes, AttributesMap},
+        attributes::{AttributesMap, attributes},
         op::Op,
     };
 
@@ -675,7 +676,7 @@ mod helpers_tests {
             .retain(4, Some(attributes!("bold" => true)))
             .delete(2);
         let input = json!({
-            "ops":[
+            "delta":[
                 {"insert": "Test"},
                 {"retain": 4, "attributes": {"bold": true}},
                 {"delete": 2}
@@ -829,7 +830,7 @@ mod compose_tests {
     use serde_json::Value;
 
     use crate::{
-        attributes::{attributes, AttributesMap},
+        attributes::{AttributesMap, attributes},
         op::Op,
     };
 
@@ -1131,7 +1132,7 @@ mod compose_tests {
 mod invert_tests {
 
     use crate::{
-        attributes::{attributes, AttributesMap},
+        attributes::{AttributesMap, attributes},
         op::Op,
     };
 
