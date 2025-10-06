@@ -18,7 +18,8 @@ use crate::{
 /// > Deltas can describe any Quill document, includes all text and formatting information, without the ambiguity and complexity of HTML.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Delta {
-    #[serde(rename = "delta")]
+    // NB: never remove previous aliases for decoding backwards compatibility
+    #[serde(rename = "delta", alias = "ops")]
     ops: Vec<Op>,
 }
 
