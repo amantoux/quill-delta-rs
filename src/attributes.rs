@@ -274,8 +274,8 @@ impl AttributesMap {
     /// let mut map = AttributesMap::new();
     /// map.insert("key", 1);
     /// assert_eq!(map.get("key"), Some(Value::from(1)));
-    pub fn get(&self, k: &str) -> Option<&Value> {
-        self.0.get(k)
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.0.get(key)
     }
 
     /// Removes a key from the attribute map, returning the value at the key if the key
@@ -293,8 +293,8 @@ impl AttributesMap {
     /// assert_eq!(map.remove(&key), Some(Value::from(1)));
     /// assert_eq!(map.remove(&key), None);
     /// ```
-    pub fn remove(&mut self, k: &str) -> Option<Value> {
-        self.0.remove(k)
+    pub fn remove(&mut self, key: &str) -> Option<Value> {
+        self.0.remove(key)
     }
 }
 
