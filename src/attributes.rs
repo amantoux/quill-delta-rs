@@ -262,6 +262,22 @@ impl AttributesMap {
         self.0.insert(key.into(), value.into())
     }
 
+    /// Gets the given key from the attribute map, returning a reference to the value at the key
+    /// if it exists.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use quill_delta_rs::attributes::AttributesMap;
+    /// use serde_json::Value;
+    ///
+    /// let mut map = AttributesMap::new();
+    /// map.insert("key", 1);
+    /// assert_eq!(map.get("key"), Some(Value::from(1)));
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.0.get(key)
+    }
+
     /// Removes a key from the attribute map, returning the value at the key if the key
     /// was previously in the map.
     ///
@@ -277,7 +293,7 @@ impl AttributesMap {
     /// assert_eq!(map.remove(&key), Some(Value::from(1)));
     /// assert_eq!(map.remove(&key), None);
     /// ```
-    pub fn remove(&mut self, key: &String) -> Option<Value> {
+    pub fn remove(&mut self, key: &str) -> Option<Value> {
         self.0.remove(key)
     }
 }
