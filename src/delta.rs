@@ -19,7 +19,7 @@ use crate::{
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Delta {
     // NB: never remove previous aliases for decoding backwards compatibility
-    #[serde(rename = "delta", alias = "ops")]
+    #[serde(alias = "ops")]
     ops: Vec<Op>,
 }
 
