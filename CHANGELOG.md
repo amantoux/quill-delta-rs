@@ -1,3 +1,6 @@
+## NEXT
+- revert - Rename ops to `delta` in (de)serialization
+
 ## 1.2.0
 - Rename ops to `delta` in (de)serialization
 

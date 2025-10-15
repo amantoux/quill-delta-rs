@@ -18,7 +18,6 @@ use crate::{
 /// > Deltas can describe any Quill document, includes all text and formatting information, without the ambiguity and complexity of HTML.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Delta {
-    #[serde(rename = "delta")]
     ops: Vec<Op>,
 }
 
@@ -676,7 +675,7 @@ mod helpers_tests {
             .retain(4, Some(attributes!("bold" => true)))
             .delete(2);
         let input = json!({
-            "delta":[
+            "ops":[
                 {"insert": "Test"},
                 {"retain": 4, "attributes": {"bold": true}},
                 {"delete": 2}
