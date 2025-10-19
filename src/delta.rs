@@ -44,14 +44,13 @@ impl Delta {
     /// use serde_json::Value;
     /// use quill_delta_rs::{delta::Delta, attributes::{attributes, AttributesMap}, op::Op};
     ///
-    /// let mut delta = Delta::new();
-    /// delta
+    /// let mut delta = Delta::new()
     ///     .insert("a", Some(attributes!("bold" => true)))
-    ///     .delete(3)
-    ///     .push(Op::insert(
-    ///         "b",
-    ///         Some(attributes!("bold" => true)),
-    ///     ));
+    ///     .delete(3);
+    /// delta.push(Op::insert(
+    ///     "b",
+    ///     Some(attributes!("bold" => true)),
+    /// ));
     /// assert_eq!(2, delta.ops().len());
     /// assert_eq!(
     ///     Op::insert("ab", Some(attributes!("bold" => true))),
@@ -111,11 +110,7 @@ impl Delta {
     }
 
     /// Push an insert [Op] in the [Delta].
-    pub fn insert<V: Into<Value>>(
-        &mut self,
-        value: V,
-        attributes: Option<AttributesMap>,
-    ) -> &mut Self {
+    pub fn insert<V: Into<Value>>(mut self, value: V, attributes: Option<AttributesMap>) -> Self {
         let value = value.into();
         if value.is_null() {
             return self;
@@ -123,18 +118,20 @@ impl Delta {
         if value.is_string() && value.as_str().unwrap().trim().is_empty() {
             return self;
         }
-
-        self.push(Op::insert(value, attributes))
+        self.push(Op::insert(value, attributes));
+        self
     }
 
     /// Push a delete [Op] in the [Delta]
-    pub fn delete(&mut self, length: usize) -> &mut Self {
-        self.push(Op::delete(length))
+    pub fn delete(mut self, length: usize) -> Self {
+        self.push(Op::delete(length));
+        self
     }
 
     /// Push a retain [Op] in the [Delta]
-    pub fn retain(&mut self, length: usize, attributes: Option<AttributesMap>) -> &mut Self {
-        self.push(Op::retain(length, attributes))
+    pub fn retain(mut self, length: usize, attributes: Option<AttributesMap>) -> Self {
+        self.push(Op::retain(length, attributes));
+        self
     }
 
     /// Remove any trail plain retain.
@@ -145,10 +142,8 @@ impl Delta {
     /// use serde_json::Value;
     /// use quill_delta_rs::delta::Delta;
     ///
-    /// let mut delta = Delta::new();
-    /// delta.insert("Test", None).retain(4, None);
-    /// let mut exp = Delta::new();
-    /// exp.insert("Test", None);
+    /// let mut delta = Delta::new().insert("Test", None).retain(4, None);
+    /// let mut exp = Delta::new().insert("Test", None);
     /// assert_eq!(&exp, delta.chop());
     /// ```
     pub fn chop(&mut self) -> &mut Self {
@@ -187,8 +182,10 @@ impl Delta {
     /// ```
     /// use quill_delta_rs::delta::Delta;
     ///
-    /// let mut delta = Delta::new();
-    /// delta.insert("Text", None).delete(3).retain(4, None);
+    /// let delta = Delta::new()
+    ///     .insert("Text", None)
+    ///     .delete(3)
+    ///     .retain(4, None);
     /// assert_eq!(11, delta.len());
     /// ```
     pub fn len(&self) -> usize {
@@ -207,8 +204,10 @@ impl Delta {
     /// ```
     /// use quill_delta_rs::delta::Delta;
     ///
-    /// let mut delta = Delta::new();
-    /// delta.insert("Text", None).delete(3).retain(4, None);
+    /// let delta = Delta::new()
+    ///     .insert("Text", None)
+    ///     .delete(3)
+    ///     .retain(4, None);
     /// assert_eq!(1, delta.change_len());
     /// ```
     pub fn change_len(&self) -> usize {
@@ -247,14 +246,12 @@ impl Delta {
     /// use quill_delta_rs::delta::Delta;
     /// use serde_json::json;
     ///
-    /// let mut delta = Delta::new();
-    /// delta
+    /// let mut delta = Delta::new()
     ///     .insert("Text", None)
     ///     .delete(3)
     ///     .retain(4, None)
     ///     .insert(json!({"key": "value"}), None);
-    /// let mut expected = Delta::new();
-    /// expected.insert("ext", None).delete(2);
+    /// let expected = Delta::new().insert("ext", None).delete(2);
     /// assert_eq!(expected, delta.slice(1, Some(6)))
     /// ```
     pub fn slice(&self, start: usize, end: Option<usize>) -> Self {
@@ -288,13 +285,12 @@ impl Delta {
     /// use quill_delta_rs::attributes::{attributes,AttributesMap};
     /// use serde_json::json;
     ///
-    /// let mut delta = Delta::new();
-    /// delta.insert("Test", Some(attributes!("bold" => true)));
+    /// let delta = Delta::new()
+    ///     .insert("Test", Some(attributes!("bold" => true)));
     /// let original = delta.clone();
-    /// let mut concat = Delta::new();
-    /// concat.insert("!", Some(attributes!("bold" => true)));
-    /// let mut expected = Delta::new();
-    /// expected.insert("Test!", Some(attributes!("bold" => true)));
+    /// let concat = Delta::new().insert("!", Some(attributes!("bold" => true)));
+    /// let expected = Delta::new()
+    ///     .insert("Test!", Some(attributes!("bold" => true)));
     /// assert_eq!(expected, delta.concat(concat));
     /// ```
     pub fn concat(&self, other: Delta) -> Self {
@@ -350,12 +346,11 @@ impl Delta {
 
         let mut combined_ops = Vec::new();
         let first_other = other_iter.peek();
-        if first_other.is_some()
-            && first_other.unwrap().is_retain()
-            && first_other.unwrap().attributes().is_none()
+        if let Some(first_other) = first_other
+            && first_other.is_retain()
+            && first_other.attributes().is_none()
         {
             // if other first op us is plain retains, use self's ops for the length of the retain
-            let first_other = first_other.unwrap();
             let mut first_other_len_left = first_other.len();
             while matches!(iter.peek_type(), OpType::INSERT(_))
                 && iter.peek_len() <= first_other_len_left
@@ -483,9 +478,9 @@ impl Delta {
         let mut inverted = Delta::new();
         self.fold(0, |base_index, op| {
             if op.is_insert() {
-                inverted.delete(op.len());
+                inverted.push(Op::delete(op.len()));
             } else if op.is_retain() && op.attributes().is_none() {
-                inverted.retain(op.len(), None);
+                inverted.push(Op::retain(op.len(), None));
                 return base_index + op.len();
             } else if op.is_delete() || (op.is_retain() && op.attributes().is_some()) {
                 let length = op.len();
@@ -494,13 +489,13 @@ impl Delta {
                     if op.is_delete() {
                         inverted.push(base_op);
                     } else if op.is_retain() && op.attributes().is_some() {
-                        inverted.retain(
+                        inverted.push(Op::retain(
                             base_op.len(),
                             Some(AttributesMap::invert(
                                 op.attributes().unwrap(),
                                 base_op.attributes().unwrap_or_default(),
                             )),
-                        );
+                        ));
                     }
                 }
                 return base_index + length;
@@ -557,19 +552,18 @@ mod push_tests {
 
     #[test]
     fn push_insert_on_delete() {
-        let mut delta = Delta::new();
-        delta.delete(3).push(Op::insert("b", None));
+        let mut delta = Delta::new().delete(3);
+        delta.push(Op::insert("b", None));
         assert_eq!(2, delta.ops().len());
         assert_eq!(Op::insert("b", None), delta.ops()[0],);
     }
 
     #[test]
     fn push_insert_on_insert_with_matching_attributes_plus_delete() {
-        let mut delta = Delta::new();
-        delta
+        let mut delta = Delta::new()
             .insert("a", Some(attributes!("bold" => true)))
-            .delete(3)
-            .push(Op::insert("b", Some(attributes!("bold" => true))));
+            .delete(3);
+        delta.push(Op::insert("b", Some(attributes!("bold" => true))));
         assert_eq!(2, delta.ops().len());
         assert_eq!(
             Op::insert("ab", Some(attributes!("bold" => true))),
@@ -579,11 +573,10 @@ mod push_tests {
 
     #[test]
     fn push_insert_on_insert_with_different_attributes_plus_delete() {
-        let mut delta = Delta::new();
-        delta
+        let mut delta = Delta::new()
             .insert("a", Some(attributes!("bold" => true)))
-            .delete(3)
-            .push(Op::insert("b", Some(attributes!("italic" => true))));
+            .delete(3);
+        delta.push(Op::insert("b", Some(attributes!("italic" => true))));
         assert_eq!(3, delta.ops().len());
         assert_eq!(
             Op::insert("a", Some(attributes!("bold" => true))),
@@ -598,26 +591,24 @@ mod push_tests {
 
     #[test]
     fn push_consecutive_delete() {
-        let mut delta = Delta::new();
-        delta.delete(2).push(Op::delete(3));
+        let mut delta = Delta::new().delete(2);
+        delta.push(Op::delete(3));
         assert_eq!(1, delta.ops().len());
         assert_eq!(Op::delete(5), delta.ops()[0]);
     }
 
     #[test]
     fn push_consecutive_text() {
-        let mut delta = Delta::new();
-        delta.insert("a", None).push(Op::insert("b", None));
+        let mut delta = Delta::new().insert("a", None);
+        delta.push(Op::insert("b", None));
         assert_eq!(1, delta.ops().len());
         assert_eq!(Op::insert("ab", None), delta.ops()[0]);
     }
 
     #[test]
     fn push_consecutive_text_matching_attributes() {
-        let mut delta = Delta::new();
-        delta
-            .insert("a", Some(attributes!("bold" => true)))
-            .push(Op::insert("b", Some(attributes!("bold" => true))));
+        let mut delta = Delta::new().insert("a", Some(attributes!("bold" => true)));
+        delta.push(Op::insert("b", Some(attributes!("bold" => true))));
         assert_eq!(1, delta.ops().len());
         assert_eq!(
             Op::insert("ab", Some(attributes!("bold" => true))),
@@ -627,10 +618,8 @@ mod push_tests {
 
     #[test]
     fn push_consecutive_retain_matching_attributes() {
-        let mut delta = Delta::new();
-        delta
-            .retain(1, Some(attributes!("bold" => true)))
-            .push(Op::retain(3, Some(attributes!("bold" => true))));
+        let mut delta = Delta::new().retain(1, Some(attributes!("bold" => true)));
+        delta.push(Op::retain(3, Some(attributes!("bold" => true))));
         assert_eq!(1, delta.ops().len());
         assert_eq!(
             Op::retain(4, Some(attributes!("bold" => true))),
@@ -640,19 +629,15 @@ mod push_tests {
 
     #[test]
     fn push_consecutive_test_different_attributes() {
-        let mut delta = Delta::new();
-        delta
-            .insert("a", Some(attributes!("bold" => true)))
-            .push(Op::insert("b", Some(attributes!("italic" => true))));
+        let mut delta = Delta::new().insert("a", Some(attributes!("bold" => true)));
+        delta.push(Op::insert("b", Some(attributes!("italic" => true))));
         assert_eq!(2, delta.ops().len());
     }
 
     #[test]
     fn push_consecutive_retain_different_attributes() {
-        let mut delta = Delta::new();
-        delta
-            .retain(2, Some(attributes!("bold" => true)))
-            .push(Op::retain(3, Some(attributes!("italic" => true))));
+        let mut delta = Delta::new().retain(2, Some(attributes!("bold" => true)));
+        delta.push(Op::retain(3, Some(attributes!("italic" => true))));
         assert_eq!(2, delta.ops().len());
     }
 }
@@ -670,8 +655,8 @@ mod helpers_tests {
 
     #[test]
     fn deserialize() {
-        let mut exp = Delta::new();
-        exp.insert("Test", None)
+        let exp = Delta::new()
+            .insert("Test", None)
             .retain(4, Some(attributes!("bold" => true)))
             .delete(2);
         let input = json!({
@@ -687,31 +672,26 @@ mod helpers_tests {
 
     #[test]
     fn retain() {
-        let mut delta = Delta::new();
-        delta.insert("Test", None).retain(4, None);
-        let mut exp = Delta::new();
-        exp.insert("Test", None);
+        let mut delta = Delta::new().insert("Test", None).retain(4, None);
+        let exp = Delta::new().insert("Test", None);
         assert_eq!(&exp, delta.chop());
     }
 
     #[test]
     fn insert() {
-        let mut delta = Delta::new();
-        delta.insert("Test", None);
+        let mut delta = Delta::new().insert("Test", None);
         assert_eq!(&delta.clone(), delta.chop());
     }
 
     #[test]
     fn insert_merge() {
-        let mut delta = Delta::new();
-        delta.insert("Test", None).insert("!", None);
+        let delta = Delta::new().insert("Test", None).insert("!", None);
         assert_eq!(Delta::from(vec!(Op::insert("Test!", None))), delta);
     }
 
     #[test]
     fn retain_with_attribute() {
-        let mut delta = Delta::new();
-        delta
+        let mut delta = Delta::new()
             .insert("Test", None)
             .retain(4, Some(attributes!("bold" => true)));
         assert_eq!(&delta.clone(), delta.chop())
@@ -719,8 +699,7 @@ mod helpers_tests {
 
     #[test]
     fn is_not_empty() {
-        let mut delta = Delta::new();
-        delta.insert("Text", None).delete(3).retain(4, None);
+        let delta = Delta::new().insert("Text", None).delete(3).retain(4, None);
         assert!(!delta.is_empty());
     }
 
@@ -732,22 +711,19 @@ mod helpers_tests {
 
     #[test]
     fn len() {
-        let mut delta = Delta::new();
-        delta.insert("Text", None).delete(3).retain(4, None);
+        let delta = Delta::new().insert("Text", None).delete(3).retain(4, None);
         assert_eq!(11, delta.len());
     }
 
     #[test]
     fn change_len() {
-        let mut delta = Delta::new();
-        delta.insert("Text", None).delete(3).retain(4, None);
+        let delta = Delta::new().insert("Text", None).delete(3).retain(4, None);
         assert_eq!(1, delta.change_len());
     }
 
     #[test]
     fn plain_text() {
-        let mut delta = Delta::new();
-        delta
+        let delta = Delta::new()
             .insert("Text", None)
             .delete(3)
             .retain(4, None)
@@ -757,27 +733,23 @@ mod helpers_tests {
 
     #[test]
     fn slice() {
-        let mut delta = Delta::new();
-        delta
+        let delta = Delta::new()
             .insert("Text", None)
             .delete(3)
             .retain(4, None)
             .insert(json!({"key": "value"}), None);
-        let mut expected = Delta::new();
-        expected.insert("ext", None).delete(2);
+        let expected = Delta::new().insert("ext", None).delete(2);
         assert_eq!(expected, delta.slice(1, Some(6)))
     }
 
     #[test]
     fn slice_until_end() {
-        let mut delta = Delta::new();
-        delta
+        let delta = Delta::new()
             .insert("Text", None)
             .delete(3)
             .retain(4, None)
             .insert(json!({"key": "value"}), None);
-        let mut expected = Delta::new();
-        expected
+        let expected = Delta::new()
             .insert("ext", None)
             .delete(3)
             .retain(4, None)
@@ -787,21 +759,17 @@ mod helpers_tests {
 
     #[test]
     fn concat_empty_delta() {
-        let mut delta = Delta::new();
-        delta.insert("Test", None);
+        let delta = Delta::new().insert("Test", None);
         let concat = Delta::new();
         assert_eq!(delta, delta.concat(concat))
     }
 
     #[test]
     fn concat_unmergeable() {
-        let mut delta = Delta::new();
-        delta.insert("Test", None);
+        let delta = Delta::new().insert("Test", None);
         let original = Delta::from(delta.ops.clone());
-        let mut concat = Delta::new();
-        concat.insert("!", Some(attributes!("bold" => true)));
-        let mut expected = Delta::new();
-        expected
+        let concat = Delta::new().insert("!", Some(attributes!("bold" => true)));
+        let expected = Delta::new()
             .insert("Test", None)
             .insert("!", Some(attributes!("bold" => true)));
         assert_eq!(expected, delta.concat(concat));
@@ -810,13 +778,10 @@ mod helpers_tests {
 
     #[test]
     fn concat_mergeable() {
-        let mut delta = Delta::new();
-        delta.insert("Test", Some(attributes!("bold" => true)));
+        let delta = Delta::new().insert("Test", Some(attributes!("bold" => true)));
         let original = delta.clone();
-        let mut concat = Delta::new();
-        concat.insert("!", Some(attributes!("bold" => true)));
-        let mut expected = Delta::new();
-        expected.insert("Test!", Some(attributes!("bold" => true)));
+        let concat = Delta::new().insert("!", Some(attributes!("bold" => true)));
+        let expected = Delta::new().insert("Test!", Some(attributes!("bold" => true)));
         assert_eq!(expected, delta.concat(concat));
         assert_eq!(original, delta)
     }
