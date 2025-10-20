@@ -22,7 +22,7 @@ pub use attributes;
 ///
 /// These include any formating attribute or companion data associated with
 /// an inserted item
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct AttributesMap(HashMap<String, Value>);
 
 impl AttributesMap {
