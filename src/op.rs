@@ -3,7 +3,7 @@ use std::fmt::{self, Display};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::attributes::AttributesMap;
+use crate::AttributesMap;
 
 /// An error related to Deltas
 #[derive(Debug)]
@@ -223,7 +223,7 @@ mod tests {
 
     use serde_json::{Value, json};
 
-    use crate::attributes::{AttributesMap, attributes};
+    use crate::{AttributesMap, attributes};
 
     use crate::op::{Op, OpType};
 

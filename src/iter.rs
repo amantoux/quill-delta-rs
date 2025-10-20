@@ -33,9 +33,9 @@ impl Iterator {
     /// use serde_json::{json, Value};
     ///
     /// use quill_delta_rs::{
-    ///     attributes::{attributes, AttributesMap},
-    ///     op::Op,
-    ///     iter::Iterator
+    ///     {attributes, AttributesMap},
+    ///     Op,
+    ///     Iterator
     /// };
     ///
     /// let ops = vec![
@@ -137,9 +137,9 @@ impl Iterator {
     /// use serde_json::{json, Value};
     ///
     /// use quill_delta_rs::{
-    ///     attributes::{attributes, AttributesMap},
-    ///     iter::Iterator,
-    ///     op::{Op, OpType},
+    ///     {attributes, AttributesMap},
+    ///     Iterator,
+    ///     {Op, OpType},
     /// };
     ///
     /// let ops = vec![
@@ -196,8 +196,8 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        attributes::{AttributesMap, attributes},
         op::{Op, OpType},
+        {AttributesMap, attributes},
     };
 
     use super::Iterator;
