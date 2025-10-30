@@ -116,7 +116,9 @@ impl Delta {
         if value.is_null() {
             return self;
         }
-        if value.is_string() && value.as_str().unwrap().trim().is_empty() {
+        if let Some(string_value) = value.as_str()
+            && string_value.is_empty()
+        {
             return self;
         }
         self.push(Op::insert(value, attributes));
@@ -697,6 +699,12 @@ mod helpers_tests {
     fn insert() {
         let mut delta = Delta::new().insert("Test", None);
         assert_eq!(&delta.clone(), delta.chop());
+    }
+
+    #[test]
+    fn insert_new_line() {
+        let delta = Delta::new().insert("\n", None);
+        assert_eq!(delta.ops(), &vec![Op::insert("\n", None)]);
     }
 
     #[test]
