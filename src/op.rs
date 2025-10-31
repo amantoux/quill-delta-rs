@@ -135,7 +135,7 @@ impl Op {
     pub fn len(&self) -> usize {
         match &self.kind {
             OpType::INSERT(value) => match value {
-                Value::String(s) => s.len(),
+                Value::String(s) => s.chars().count(),
                 _ => 1,
             },
             OpType::RETAIN(len) => *len,
