@@ -10,15 +10,14 @@ Implementation of Quill editor Delta format in Rust. Refer to official
 
 ```rust
 use quill_delta_rs::{
-    attributes::{attributes, AttributesMap}, 
+    attributes::{attributes, AttributesMap},
     delta::Delta
 };
 
 fn main() {
     let mut doc = Delta::new();
     doc.insert("Hello world\n", Some(attributes!("h" => "1")));
-    let mut change = Delta::new();
-    change
+    let change = Delta::new()
         .retain(6, None)
         .delete(6)
         .insert("Earth\n", None);
@@ -31,14 +30,14 @@ fn main() {
     //
     //  Original document:
     //  ins(Hello world⏎) + {h: 1}}
-    //      
-    //      
+    //
+    //
     //  Change:
     //  ret(6)
     //  ins(Earth⏎)
     //  del(6)
-    //      
-    //      
+    //
+    //
     //  Updated document:
     //  ins(Hello ) + {h: 1}}
     //  ins(Earth⏎)
