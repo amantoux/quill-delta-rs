@@ -1,3 +1,6 @@
+## NEXT
+- replace `serde_derive` dependency with `serde`
+
 ## 2.0.0
 - Deserialization with `delta` instead of `ops` property is supported
 - Enhanced `Delta` builder functions
