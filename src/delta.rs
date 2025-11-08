@@ -383,8 +383,8 @@ impl Delta {
                 if other_op.is_retain() {
                     // Preserve null when composing with a retain, otherwise remove it for inserts
                     let attributes = AttributesMap::compose(
-                        self_op.attributes().unwrap_or_default(),
-                        other_op.attributes().unwrap_or_default(),
+                        &self_op.attributes().unwrap_or_default(),
+                        &other_op.attributes().unwrap_or_default(),
                         self_op.is_retain(),
                     );
                     let new_op = if self_op.is_retain() {
@@ -495,8 +495,8 @@ impl Delta {
                         inverted.push(Op::retain(
                             base_op.len(),
                             Some(AttributesMap::invert(
-                                op.attributes().unwrap(),
-                                base_op.attributes().unwrap_or_default(),
+                                &op.attributes().unwrap(),
+                                &base_op.attributes().unwrap_or_default(),
                             )),
                         ));
                     }
