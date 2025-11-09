@@ -4,17 +4,17 @@ use serde_json::Value;
 
 use crate::op::{Op, OpType};
 
-pub struct Iterator {
-    ops: Vec<Op>,
+pub struct Iterator<'it> {
+    ops: &'it Vec<Op>,
     // index of current operation in ops
     index: usize,
     // offset within current operation
     offset: usize,
 }
 
-impl Iterator {
+impl<'it> Iterator<'it> {
     /// Create an iterator from a list of [Op]s
-    pub fn from(operations: Vec<Op>) -> Self {
+    pub fn from(operations: &'it Vec<Op>) -> Self {
         Iterator {
             ops: operations,
             index: 0,
@@ -44,7 +44,7 @@ impl Iterator {
     ///     Op::delete(4),
     ///     Op::insert(json!({"key": "value"}), None),
     /// ];
-    /// let mut iter = Iterator::from(ops);
+    /// let mut iter = Iterator::from(&ops);
     /// assert_eq!(
     ///     Op::insert("He", Some(attributes!("bold" => true))),
     ///     iter.next_len(2)
@@ -148,7 +148,7 @@ impl Iterator {
     ///     Op::delete(4),
     ///     Op::insert(json!({"key": "value"}), None),
     /// ];
-    /// let mut iter = Iterator::from(ops);
+    /// let mut iter = Iterator::from(&ops);
     /// let _ = iter.next_len(2);
     /// assert_eq!(
     ///     vec![
@@ -182,7 +182,7 @@ impl Iterator {
     }
 }
 
-impl iter::Iterator for Iterator {
+impl<'it> iter::Iterator for Iterator<'it> {
     type Item = Op;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -210,7 +210,7 @@ mod tests {
             Op::delete(4),
             Op::insert(json!({"key": "value"}), None),
         ];
-        let mut iter = Iterator::from(ops);
+        let mut iter = Iterator::from(&ops);
         assert_eq!(
             Op::insert("He", Some(attributes!("bold" => true))),
             iter.next_len(2)
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn peek() {
         let ops = vec![Op::insert("Hello", Some(attributes!("bold" => true)))];
-        let mut iter = Iterator::from(ops);
+        let mut iter = Iterator::from(&ops);
         assert_eq!(
             &Op::insert("Hello", Some(attributes!("bold" => true)),),
             iter.peek().unwrap()
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn peek_len() {
         let ops = vec![Op::insert("Hello", Some(attributes!("bold" => true)))];
-        let mut iter = Iterator::from(ops);
+        let mut iter = Iterator::from(&ops);
         assert_eq!("Hello".len(), iter.peek_len());
         assert_eq!(
             Op::insert("Hello", Some(attributes!("bold" => true)),),
@@ -256,7 +256,7 @@ mod tests {
     #[test]
     fn peek_type() {
         let ops = vec![Op::insert("Hello", Some(attributes!("bold" => true)))];
-        let mut iter = Iterator::from(ops);
+        let mut iter = Iterator::from(&ops);
         assert_eq!(OpType::INSERT("Hello".into()), iter.peek_type());
         assert_eq!(
             Op::insert("Hello", Some(attributes!("bold" => true)),),
@@ -268,7 +268,7 @@ mod tests {
     #[test]
     fn has_next() {
         let ops = vec![Op::insert("Hello", Some(attributes!("bold" => true)))];
-        let mut iter = Iterator::from(ops);
+        let mut iter = Iterator::from(&ops);
         assert_eq!(true, iter.has_next());
         assert_eq!(
             Op::insert("Hello", Some(attributes!("bold" => true)),),
@@ -285,7 +285,7 @@ mod tests {
             Op::delete(4),
             Op::insert(json!({"key": "value"}), None),
         ];
-        let mut iter = Iterator::from(ops);
+        let mut iter = Iterator::from(&ops);
         let _ = iter.next_len(2);
         assert_eq!(
             vec![

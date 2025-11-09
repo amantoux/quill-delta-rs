@@ -259,7 +259,7 @@ impl Delta {
     /// ```
     pub fn slice(&self, start: usize, end: Option<usize>) -> Self {
         let mut ops = Vec::new();
-        let mut iter = crate::iter::Iterator::from(self.ops.clone());
+        let mut iter = crate::iter::Iterator::from(&self.ops);
         let mut index = 0;
         let end = end.unwrap_or(usize::MAX);
         while index < end && iter.has_next() {
@@ -344,8 +344,8 @@ impl Delta {
     /// assert_eq!(expected, a.compose(&b));
     /// ```
     pub fn compose(&self, other: &Delta) -> Delta {
-        let mut iter = Iterator::from(self.ops.clone());
-        let mut other_iter = Iterator::from(other.ops.clone());
+        let mut iter = Iterator::from(&self.ops);
+        let mut other_iter = Iterator::from(&other.ops);
 
         let mut combined_ops = Vec::new();
         let first_other = other_iter.peek();
