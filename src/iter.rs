@@ -2,19 +2,19 @@ use std::iter;
 
 use serde_json::Value;
 
-use crate::op::{Op, OpType};
+use crate::op::{Op, OpKind};
 
-pub struct Iterator {
-    ops: Vec<Op>,
+pub struct Iterator<'it> {
+    ops: &'it Vec<Op>,
     // index of current operation in ops
     index: usize,
     // offset within current operation
     offset: usize,
 }
 
-impl Iterator {
+impl<'it> Iterator<'it> {
     /// Create an iterator from a list of [Op]s
-    pub fn from(operations: Vec<Op>) -> Self {
+    pub fn from(operations: &'it Vec<Op>) -> Self {
         Iterator {
             ops: operations,
             index: 0,
@@ -44,7 +44,7 @@ impl Iterator {
     ///     Op::delete(4),
     ///     Op::insert(json!({"key": "value"}), None),
     /// ];
-    /// let mut iter = Iterator::from(ops);
+    /// let mut iter = Iterator::from(&ops);
     /// assert_eq!(
     ///     Op::insert("He", Some(attributes!("bold" => true))),
     ///     iter.next_len(2)
@@ -116,9 +116,9 @@ impl Iterator {
     /// Get the [OpType] of the next [Op] without affecting the iterator.
     ///
     /// Returns ```OpType::RETAIN(usize::MAX)``` if no more [Op] available.
-    pub fn peek_type(&self) -> OpType {
+    pub fn peek_type(&self) -> OpKind {
         if self.index >= self.ops.len() {
-            OpType::RETAIN(usize::MAX)
+            OpKind::Retain(usize::MAX)
         } else {
             self.ops.get(self.index).unwrap().kind()
         }
@@ -139,7 +139,7 @@ impl Iterator {
     /// use quill_delta_rs::{
     ///     {attributes, AttributesMap},
     ///     Iterator,
-    ///     {Op, OpType},
+    ///     {Op, OpKind},
     /// };
     ///
     /// let ops = vec![
@@ -148,7 +148,7 @@ impl Iterator {
     ///     Op::delete(4),
     ///     Op::insert(json!({"key": "value"}), None),
     /// ];
-    /// let mut iter = Iterator::from(ops);
+    /// let mut iter = Iterator::from(&ops);
     /// let _ = iter.next_len(2);
     /// assert_eq!(
     ///     vec![
@@ -182,7 +182,7 @@ impl Iterator {
     }
 }
 
-impl iter::Iterator for Iterator {
+impl<'it> iter::Iterator for Iterator<'it> {
     type Item = Op;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -196,7 +196,7 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        op::{Op, OpType},
+        op::{Op, OpKind},
         {AttributesMap, attributes},
     };
 
@@ -210,7 +210,7 @@ mod tests {
             Op::delete(4),
             Op::insert(json!({"key": "value"}), None),
         ];
-        let mut iter = Iterator::from(ops);
+        let mut iter = Iterator::from(&ops);
         assert_eq!(
             Op::insert("He", Some(attributes!("bold" => true))),
             iter.next_len(2)
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn peek() {
         let ops = vec![Op::insert("Hello", Some(attributes!("bold" => true)))];
-        let mut iter = Iterator::from(ops);
+        let mut iter = Iterator::from(&ops);
         assert_eq!(
             &Op::insert("Hello", Some(attributes!("bold" => true)),),
             iter.peek().unwrap()
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn peek_len() {
         let ops = vec![Op::insert("Hello", Some(attributes!("bold" => true)))];
-        let mut iter = Iterator::from(ops);
+        let mut iter = Iterator::from(&ops);
         assert_eq!("Hello".len(), iter.peek_len());
         assert_eq!(
             Op::insert("Hello", Some(attributes!("bold" => true)),),
@@ -256,19 +256,19 @@ mod tests {
     #[test]
     fn peek_type() {
         let ops = vec![Op::insert("Hello", Some(attributes!("bold" => true)))];
-        let mut iter = Iterator::from(ops);
-        assert_eq!(OpType::INSERT("Hello".into()), iter.peek_type());
+        let mut iter = Iterator::from(&ops);
+        assert_eq!(OpKind::Insert("Hello".into()), iter.peek_type());
         assert_eq!(
             Op::insert("Hello", Some(attributes!("bold" => true)),),
             iter.next().unwrap()
         );
-        assert_eq!(OpType::RETAIN(usize::MAX), iter.peek_type());
+        assert_eq!(OpKind::Retain(usize::MAX), iter.peek_type());
     }
 
     #[test]
     fn has_next() {
         let ops = vec![Op::insert("Hello", Some(attributes!("bold" => true)))];
-        let mut iter = Iterator::from(ops);
+        let mut iter = Iterator::from(&ops);
         assert_eq!(true, iter.has_next());
         assert_eq!(
             Op::insert("Hello", Some(attributes!("bold" => true)),),
@@ -285,7 +285,7 @@ mod tests {
             Op::delete(4),
             Op::insert(json!({"key": "value"}), None),
         ];
-        let mut iter = Iterator::from(ops);
+        let mut iter = Iterator::from(&ops);
         let _ = iter.next_len(2);
         assert_eq!(
             vec![

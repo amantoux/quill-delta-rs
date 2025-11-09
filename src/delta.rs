@@ -6,7 +6,7 @@ use serde_json::Value;
 use crate::{
     attributes::AttributesMap,
     iter::Iterator,
-    op::{Op, OpType},
+    op::{Op, OpKind},
 };
 
 /// Implementation of Quill editor Delta format
@@ -82,20 +82,20 @@ impl Delta {
             last_op = &mut self.ops[index - 1];
         }
 
-        if new_op.attributes() == last_op.attributes() {
+        if new_op.attributes == last_op.attributes {
             if new_op.is_insert()
                 && last_op.is_insert()
                 && new_op.value().is_string()
                 && last_op.value().is_string()
             {
-                let mut merged_text = last_op.value_as_string().clone();
+                let mut merged_text = last_op.value_as_string();
                 merged_text.push_str(&new_op.value_as_string());
-                let merged_op = Op::insert(Value::from(merged_text), new_op.attributes());
+                let merged_op = Op::insert(Value::from(merged_text), Some(new_op.attributes));
                 let _ = std::mem::replace(last_op, merged_op);
                 return self;
             }
             if last_op.is_retain() && new_op.is_retain() {
-                let merged_op = Op::retain(last_op.len() + new_op.len(), new_op.attributes());
+                let merged_op = Op::retain(last_op.len() + new_op.len(), Some(new_op.attributes));
                 let _ = std::mem::replace(last_op, merged_op);
                 return self;
             }
@@ -154,7 +154,7 @@ impl Delta {
             return self;
         }
         let last_op = self.ops.last().unwrap();
-        if last_op.is_retain() && last_op.attributes().is_none() {
+        if last_op.is_retain() && last_op.attributes.is_empty() {
             self.ops.remove(self.ops.len() - 1);
         }
         self
@@ -230,7 +230,7 @@ impl Delta {
         let mut plain_text = String::new();
         for op in &self.ops {
             if op.is_text_insert() {
-                plain_text.push_str(&op.value_as_string().clone());
+                plain_text.push_str(&op.value_as_string());
             } else {
                 plain_text.push('\n');
             }
@@ -259,7 +259,7 @@ impl Delta {
     /// ```
     pub fn slice(&self, start: usize, end: Option<usize>) -> Self {
         let mut ops = Vec::new();
-        let mut iter = crate::iter::Iterator::from(self.ops.clone());
+        let mut iter = crate::iter::Iterator::from(&self.ops);
         let mut index = 0;
         let end = end.unwrap_or(usize::MAX);
         while index < end && iter.has_next() {
@@ -298,11 +298,10 @@ impl Delta {
     /// ```
     pub fn concat(&self, other: Delta) -> Self {
         let mut delta = self.clone();
-        let mut other = other.clone();
+        let mut other = other;
         if !other.is_empty() {
             // benefit from compression on first element of other
-            delta.push(other.ops.first().unwrap().clone());
-            other.ops.drain(0..1);
+            delta.push(other.ops.remove(0));
             delta.ops.append(&mut other.ops);
         }
         delta
@@ -344,18 +343,18 @@ impl Delta {
     /// assert_eq!(expected, a.compose(&b));
     /// ```
     pub fn compose(&self, other: &Delta) -> Delta {
-        let mut iter = Iterator::from(self.ops.clone());
-        let mut other_iter = Iterator::from(other.ops.clone());
+        let mut iter = Iterator::from(&self.ops);
+        let mut other_iter = Iterator::from(&other.ops);
 
         let mut combined_ops = Vec::new();
         let first_other = other_iter.peek();
         if let Some(first_other) = first_other
             && first_other.is_retain()
-            && first_other.attributes().is_none()
+            && first_other.attributes.is_empty()
         {
             // if other first op us is plain retains, use self's ops for the length of the retain
             let mut first_other_len_left = first_other.len();
-            while matches!(iter.peek_type(), OpType::INSERT(_))
+            while matches!(iter.peek_type(), OpKind::Insert(_))
                 && iter.peek_len() <= first_other_len_left
             {
                 first_other_len_left -= iter.peek_len();
@@ -369,10 +368,10 @@ impl Delta {
         let mut delta = Delta::from(combined_ops);
 
         while iter.has_next() || other_iter.has_next() {
-            if matches!(other_iter.peek_type(), OpType::INSERT(_)) {
+            if matches!(other_iter.peek_type(), OpKind::Insert(_)) {
                 let other_next = other_iter.next().unwrap();
                 delta.push(other_next);
-            } else if matches!(iter.peek_type(), OpType::DELETE(_)) {
+            } else if matches!(iter.peek_type(), OpKind::Delete(_)) {
                 let self_next = iter.next().unwrap();
                 delta.push(self_next);
             } else {
@@ -383,8 +382,8 @@ impl Delta {
                 if other_op.is_retain() {
                     // Preserve null when composing with a retain, otherwise remove it for inserts
                     let attributes = AttributesMap::compose(
-                        self_op.attributes().unwrap_or_default(),
-                        other_op.attributes().unwrap_or_default(),
+                        &self_op.attributes,
+                        &other_op.attributes,
                         self_op.is_retain(),
                     );
                     let new_op = if self_op.is_retain() {
@@ -485,19 +484,16 @@ impl Delta {
             } else if op.is_retain() && op.attributes().is_none() {
                 inverted.push(Op::retain(op.len(), None));
                 return base_index + op.len();
-            } else if op.is_delete() || (op.is_retain() && op.attributes().is_some()) {
+            } else if op.is_delete() || (op.is_retain() && !op.attributes.is_empty()) {
                 let length = op.len();
                 let slice = base.slice(base_index, Some(base_index + length));
                 for base_op in slice.ops {
                     if op.is_delete() {
                         inverted.push(base_op);
-                    } else if op.is_retain() && op.attributes().is_some() {
+                    } else if op.is_retain() && !op.attributes.is_empty() {
                         inverted.push(Op::retain(
                             base_op.len(),
-                            Some(AttributesMap::invert(
-                                op.attributes().unwrap(),
-                                base_op.attributes().unwrap_or_default(),
-                            )),
+                            Some(AttributesMap::invert(&op.attributes, &base_op.attributes)),
                         ));
                     }
                 }

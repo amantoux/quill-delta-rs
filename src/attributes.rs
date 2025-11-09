@@ -46,13 +46,13 @@ impl AttributesMap {
     /// b.insert("keyA", "ab");
     /// b.insert("keyB", "b");
     /// b.insert("keyBNull", Value::Null);
-    /// let composed = AttributesMap::compose(a, b, false);
+    /// let composed = AttributesMap::compose(&a, &b, false);
     /// assert_eq!(composed, Some(attributes!(
     ///     "keyA" => "ab",
     ///     "keyB" => "b",
     /// )));
     /// ```
-    pub fn compose(a: AttributesMap, b: AttributesMap, keep_null: bool) -> Option<Self> {
+    pub fn compose(a: &AttributesMap, b: &AttributesMap, keep_null: bool) -> Option<Self> {
         let mut attributes = b.clone();
 
         if !keep_null {
@@ -101,7 +101,7 @@ impl AttributesMap {
     ///     "keyB" => "b",
     ///     "keyBNull" => Value::Null
     /// );
-    /// let composed = AttributesMap::diff(a, b);
+    /// let composed = AttributesMap::diff(&a, &b);
     /// assert_eq!(
     ///     Some(attributes!(
     ///         "keyA" => "ab",
@@ -112,7 +112,7 @@ impl AttributesMap {
     ///     composed
     /// );
     /// ```
-    pub fn diff(a: AttributesMap, b: AttributesMap) -> Option<Self> {
+    pub fn diff(a: &AttributesMap, b: &AttributesMap) -> Option<Self> {
         let mut attributes = AttributesMap::new();
         let mut keys: HashSet<String> = a.0.clone().into_keys().collect();
         keys.extend(b.0.clone().into_keys());
@@ -150,10 +150,10 @@ impl AttributesMap {
     /// let base = attributes!("italic" => true);
     /// assert_eq!(
     ///     attributes!("bold" => Value::Null),
-    ///     AttributesMap::invert(attributes, base)
+    ///     AttributesMap::invert(&attributes, &base)
     /// );
     /// ```
-    pub fn invert(attr: AttributesMap, base: AttributesMap) -> AttributesMap {
+    pub fn invert(attr: &AttributesMap, base: &AttributesMap) -> AttributesMap {
         let mut base_inverted = AttributesMap::new();
         for k in base.0.keys() {
             if base.0.get(k) != attr.0.get(k) && attr.0.contains_key(k) {
@@ -192,6 +192,7 @@ impl AttributesMap {
     ///     AttributesMap::transform(left, right, true)
     /// )
     /// ```
+    // TODO: use references if relevant
     pub fn transform(a: AttributesMap, b: AttributesMap, priority: bool) -> Option<AttributesMap> {
         if a.is_empty() {
             return if b.is_empty() { None } else { Some(b) };
@@ -450,7 +451,7 @@ mod tests {
             ("keyBNull", Value::Null),
         ]);
 
-        let composed = AttributesMap::compose(a, b, false);
+        let composed = AttributesMap::compose(&a, &b, false);
         assert_eq!(
             composed,
             Some(AttributesMap::from([
@@ -469,7 +470,7 @@ mod tests {
             ("keyB", Value::from("b")),
             ("keyBNull", Value::Null),
         ]);
-        let composed = AttributesMap::compose(a, b, true);
+        let composed = AttributesMap::compose(&a, &b, true);
         assert_eq!(
             composed,
             Some(AttributesMap::from([
@@ -484,7 +485,7 @@ mod tests {
     fn compose_null_output() {
         let a = AttributesMap::from([("keyANull", Value::Null)]);
         let b = AttributesMap::from([("keyBNull", Value::Null)]);
-        let compose = AttributesMap::compose(a, b, false);
+        let compose = AttributesMap::compose(&a, &b, false);
         assert!(compose.is_none())
     }
 
@@ -500,7 +501,7 @@ mod tests {
             ("3", Value::from("b")),
             ("b-null", Value::Null),
         ]);
-        let composed = AttributesMap::diff(a, b);
+        let composed = AttributesMap::diff(&a, &b);
         assert_eq!(
             composed,
             Some(AttributesMap::from([
@@ -521,7 +522,7 @@ mod tests {
             ("a-null", Value::Null),
         ]);
         let b = a.clone();
-        let composed = AttributesMap::diff(a, b);
+        let composed = AttributesMap::diff(&a, &b);
         assert_eq!(composed, None);
     }
 
@@ -529,7 +530,7 @@ mod tests {
     fn invert_replace() {
         let attributes = AttributesMap::from([("color", Value::from("red"))]);
         let base = AttributesMap::from([("color", Value::from("blue"))]);
-        assert_eq!(base, AttributesMap::invert(attributes, base.clone()));
+        assert_eq!(base, AttributesMap::invert(&attributes, &base));
     }
 
     #[test]
@@ -538,7 +539,7 @@ mod tests {
         let base = AttributesMap::from([("bold", Value::Bool(true))]);
         assert_eq!(
             AttributesMap::from([("bold", Value::Bool(true))]),
-            AttributesMap::invert(attributes, base)
+            AttributesMap::invert(&attributes, &base)
         );
     }
 
@@ -548,7 +549,7 @@ mod tests {
         let base = AttributesMap::from([("italic", Value::Bool(true))]);
         assert_eq!(
             AttributesMap::from([("bold", Value::Null)]),
-            AttributesMap::invert(attributes, base)
+            AttributesMap::invert(&attributes, &base)
         );
     }
 
@@ -557,7 +558,7 @@ mod tests {
         let base = AttributesMap::from([("bold", Value::Bool(true))]);
         assert_eq!(
             AttributesMap::new(),
-            AttributesMap::invert(AttributesMap::new(), base)
+            AttributesMap::invert(&AttributesMap::new(), &base)
         );
     }
 
@@ -567,7 +568,7 @@ mod tests {
         let expected = AttributesMap::from([("bold", Value::Null)]);
         assert_eq!(
             expected,
-            AttributesMap::invert(attributes, AttributesMap::new())
+            AttributesMap::invert(&attributes, &AttributesMap::new())
         );
     }
 
@@ -575,7 +576,7 @@ mod tests {
     fn inver_both_null() {
         assert_eq!(
             AttributesMap::new(),
-            AttributesMap::invert(AttributesMap::new(), AttributesMap::new())
+            AttributesMap::invert(&AttributesMap::new(), &AttributesMap::new())
         );
     }
 
