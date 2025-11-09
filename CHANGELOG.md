@@ -1,5 +1,23 @@
-## NEXT
-- replace `serde_derive` dependency with `serde`
+## 2.1.0
+- Remove serde_derive dependency from Cargo.toml
+- Use references when relevant & avoid cloning
+### Breaking changes
+ - `OpType` renamed to `OpKind`
+  - `INSERT` -> `Insert`
+  - `RETAIN` -> `Retain`
+  - `DELETE` -> `Delete`
+ - ```rust
+   - let composed = AttributesMap::compose(a, b, false);
+   + let composed = AttributesMap::compose(&a, &b, false);
+   ```
+ - ```rust
+   - let diff = AttributesMap::diff(a, b);
+   + let diff = AttributesMap::diff(&a, &b);
+   ```
+ - ```rust
+   - AttributesMap::invert(attributes, base)
+   + AttributesMap::invert(&attributes, &base)
+   ```
 
 ## 2.0.0
 - Deserialization with `delta` instead of `ops` property is supported
