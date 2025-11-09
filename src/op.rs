@@ -46,9 +46,9 @@ pub enum OpKind {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Op {
     #[serde(flatten)]
-    kind: OpKind,
+    pub(crate) kind: OpKind,
     #[serde(default, skip_serializing_if = "AttributesMap::is_empty")]
-    attributes: AttributesMap,
+    pub(crate) attributes: AttributesMap,
 }
 
 impl Op {
