@@ -2,7 +2,7 @@ use std::iter;
 
 use serde_json::Value;
 
-use crate::op::{Op, OpType};
+use crate::op::{Op, OpKind};
 
 pub struct Iterator<'it> {
     ops: &'it Vec<Op>,
@@ -116,9 +116,9 @@ impl<'it> Iterator<'it> {
     /// Get the [OpType] of the next [Op] without affecting the iterator.
     ///
     /// Returns ```OpType::RETAIN(usize::MAX)``` if no more [Op] available.
-    pub fn peek_type(&self) -> OpType {
+    pub fn peek_type(&self) -> OpKind {
         if self.index >= self.ops.len() {
-            OpType::RETAIN(usize::MAX)
+            OpKind::Retain(usize::MAX)
         } else {
             self.ops.get(self.index).unwrap().kind()
         }
@@ -139,7 +139,7 @@ impl<'it> Iterator<'it> {
     /// use quill_delta_rs::{
     ///     {attributes, AttributesMap},
     ///     Iterator,
-    ///     {Op, OpType},
+    ///     {Op, OpKind},
     /// };
     ///
     /// let ops = vec![
@@ -196,7 +196,7 @@ mod tests {
     use serde_json::json;
 
     use crate::{
-        op::{Op, OpType},
+        op::{Op, OpKind},
         {AttributesMap, attributes},
     };
 
@@ -257,12 +257,12 @@ mod tests {
     fn peek_type() {
         let ops = vec![Op::insert("Hello", Some(attributes!("bold" => true)))];
         let mut iter = Iterator::from(&ops);
-        assert_eq!(OpType::INSERT("Hello".into()), iter.peek_type());
+        assert_eq!(OpKind::Insert("Hello".into()), iter.peek_type());
         assert_eq!(
             Op::insert("Hello", Some(attributes!("bold" => true)),),
             iter.next().unwrap()
         );
-        assert_eq!(OpType::RETAIN(usize::MAX), iter.peek_type());
+        assert_eq!(OpKind::Retain(usize::MAX), iter.peek_type());
     }
 
     #[test]

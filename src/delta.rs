@@ -6,7 +6,7 @@ use serde_json::Value;
 use crate::{
     attributes::AttributesMap,
     iter::Iterator,
-    op::{Op, OpType},
+    op::{Op, OpKind},
 };
 
 /// Implementation of Quill editor Delta format
@@ -355,7 +355,7 @@ impl Delta {
         {
             // if other first op us is plain retains, use self's ops for the length of the retain
             let mut first_other_len_left = first_other.len();
-            while matches!(iter.peek_type(), OpType::INSERT(_))
+            while matches!(iter.peek_type(), OpKind::Insert(_))
                 && iter.peek_len() <= first_other_len_left
             {
                 first_other_len_left -= iter.peek_len();
@@ -369,10 +369,10 @@ impl Delta {
         let mut delta = Delta::from(combined_ops);
 
         while iter.has_next() || other_iter.has_next() {
-            if matches!(other_iter.peek_type(), OpType::INSERT(_)) {
+            if matches!(other_iter.peek_type(), OpKind::Insert(_)) {
                 let other_next = other_iter.next().unwrap();
                 delta.push(other_next);
-            } else if matches!(iter.peek_type(), OpType::DELETE(_)) {
+            } else if matches!(iter.peek_type(), OpKind::Delete(_)) {
                 let self_next = iter.next().unwrap();
                 delta.push(self_next);
             } else {

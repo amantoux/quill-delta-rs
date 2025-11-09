@@ -7,4 +7,4 @@ mod op;
 pub use crate::attributes::AttributesMap;
 pub use crate::delta::Delta;
 pub use crate::iter::Iterator;
-pub use crate::op::{Op, OpType};
+pub use crate::op::{Op, OpKind};

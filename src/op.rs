@@ -33,11 +33,11 @@ impl std::error::Error for Error {}
 /// Kind operation that Deltas support
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-pub enum OpType {
+pub enum OpKind {
     // Bind module to JSON serialization
-    INSERT(Value),
-    RETAIN(usize),
-    DELETE(usize),
+    Insert(Value),
+    Retain(usize),
+    Delete(usize),
 }
 
 /// An operation in a Delta.
@@ -46,7 +46,7 @@ pub enum OpType {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Op {
     #[serde(flatten)]
-    kind: OpType,
+    kind: OpKind,
     #[serde(default, skip_serializing_if = "AttributesMap::is_empty")]
     attributes: AttributesMap,
 }
@@ -71,7 +71,7 @@ impl Op {
             );
         }
         Op {
-            kind: OpType::INSERT(object),
+            kind: OpKind::Insert(object),
             attributes: Self::attributes_or_empty(attributes),
         }
     }
@@ -87,7 +87,7 @@ impl Op {
             ));
         }
         Ok(Op {
-            kind: OpType::INSERT(object),
+            kind: OpKind::Insert(object),
             attributes: Self::attributes_or_empty(attributes),
         })
     }
@@ -95,7 +95,7 @@ impl Op {
     pub fn retain(length: usize, attributes: Option<AttributesMap>) -> Self {
         assert_ne!(length, 0, "retain length must be greater than zero");
         Op {
-            kind: OpType::RETAIN(length),
+            kind: OpKind::Retain(length),
             attributes: Self::attributes_or_empty(attributes),
         }
     }
@@ -103,7 +103,7 @@ impl Op {
     pub fn delete(length: usize) -> Self {
         assert_ne!(length, 0, "delete length must be greater than zero");
         Op {
-            kind: OpType::DELETE(length),
+            kind: OpKind::Delete(length),
             attributes: AttributesMap::new(),
         }
     }
@@ -113,33 +113,33 @@ impl Op {
     }
 
     pub fn is_insert(&self) -> bool {
-        matches!(self.kind, OpType::INSERT(_))
+        matches!(self.kind, OpKind::Insert(_))
     }
 
     pub fn is_text_insert(&self) -> bool {
-        matches!(&self.kind, OpType::INSERT(value) if matches!(value, Value::String(_)))
+        matches!(&self.kind, OpKind::Insert(value) if matches!(value, Value::String(_)))
     }
 
     pub fn is_retain(&self) -> bool {
-        matches!(self.kind, OpType::RETAIN(_))
+        matches!(self.kind, OpKind::Retain(_))
     }
 
     pub fn is_delete(&self) -> bool {
-        matches!(self.kind, OpType::DELETE(_))
+        matches!(self.kind, OpKind::Delete(_))
     }
 
-    pub fn kind(&self) -> OpType {
+    pub fn kind(&self) -> OpKind {
         self.kind.clone()
     }
 
     pub fn len(&self) -> usize {
         match &self.kind {
-            OpType::INSERT(value) => match value {
+            OpKind::Insert(value) => match value {
                 Value::String(s) => s.chars().count(),
                 _ => 1,
             },
-            OpType::RETAIN(len) => *len,
-            OpType::DELETE(len) => *len,
+            OpKind::Retain(len) => *len,
+            OpKind::Delete(len) => *len,
         }
     }
 
@@ -149,7 +149,7 @@ impl Op {
 
     pub fn attributes(&self) -> Option<AttributesMap> {
         match self.kind {
-            OpType::DELETE(_) => None,
+            OpKind::Delete(_) => None,
             _ => {
                 if self.attributes.is_empty() {
                     None
@@ -162,7 +162,7 @@ impl Op {
 
     pub fn value(&self) -> Value {
         match &self.kind {
-            OpType::INSERT(value) => value.clone(),
+            OpKind::Insert(value) => value.clone(),
             _ => panic!(
                 "Retrieving the value of an operation is possible \
                 only on INSERT operations; Try to get value of {:?}",
@@ -173,7 +173,7 @@ impl Op {
 
     pub fn value_as_string(&self) -> String {
         match &self.kind {
-            OpType::INSERT(value) => {
+            OpKind::Insert(value) => {
                 if let Some(str) = value.clone().as_str() {
                     String::from(str)
                 } else {
@@ -196,7 +196,7 @@ impl Op {
 impl Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
-            OpType::INSERT(v) => {
+            OpKind::Insert(v) => {
                 f.write_fmt(format_args!(
                     "ins({})",
                     v.as_str()
@@ -204,10 +204,10 @@ impl Display for Op {
                         .replace('\n', "⏎")
                 ))?;
             }
-            OpType::RETAIN(l) => {
+            OpKind::Retain(l) => {
                 f.write_fmt(format_args!("ret({l})"))?;
             }
-            OpType::DELETE(l) => {
+            OpKind::Delete(l) => {
                 f.write_fmt(format_args!("del({l})"))?;
             }
         }
@@ -225,7 +225,7 @@ mod tests {
 
     use crate::{AttributesMap, attributes};
 
-    use crate::op::{Op, OpType};
+    use crate::op::{Op, OpKind};
 
     #[test]
     fn deserialize_insert_no_attributes() {
@@ -275,7 +275,7 @@ mod tests {
         assert!(act.is_insert());
         assert!(!act.is_delete());
         assert!(!act.is_retain());
-        assert!(matches!(act.kind(), OpType::INSERT(_)));
+        assert!(matches!(act.kind(), OpKind::Insert(_)));
         assert!(act.attributes().is_none())
     }
 
@@ -292,7 +292,7 @@ mod tests {
         assert!(act.is_insert());
         assert!(!act.is_delete());
         assert!(!act.is_retain());
-        assert!(matches!(act.kind(), OpType::INSERT(_)));
+        assert!(matches!(act.kind(), OpKind::Insert(_)));
         assert!(
             act.attributes().is_some(),
             "No attributes; attributes are expected"
@@ -319,7 +319,7 @@ mod tests {
         assert!(act.is_insert());
         assert!(!act.is_delete());
         assert!(!act.is_retain());
-        assert!(matches!(act.kind(), OpType::INSERT(_)));
+        assert!(matches!(act.kind(), OpKind::Insert(_)));
         assert_eq!(act.len(), 1);
         assert_eq!(act.value(), value);
         assert!(act.attributes().is_none(), "No attributes are expected");
@@ -408,7 +408,7 @@ mod tests {
         assert!(!act.is_insert());
         assert!(act.is_delete());
         assert!(!act.is_retain());
-        assert!(matches!(act.kind(), OpType::DELETE(_)));
+        assert!(matches!(act.kind(), OpKind::Delete(_)));
         assert_eq!(act.len(), 3);
         assert!(act.attributes().is_none());
     }
@@ -420,7 +420,7 @@ mod tests {
         assert!(!act.is_insert());
         assert!(!act.is_delete());
         assert!(act.is_retain());
-        assert!(matches!(act.kind(), OpType::RETAIN(_)));
+        assert!(matches!(act.kind(), OpKind::Retain(_)));
         assert_eq!(act.len(), 3);
         assert!(act.attributes().is_none())
     }
@@ -432,7 +432,7 @@ mod tests {
         assert!(!act.is_insert());
         assert!(!act.is_delete());
         assert!(act.is_retain());
-        assert!(matches!(act.kind(), OpType::RETAIN(_)));
+        assert!(matches!(act.kind(), OpKind::Retain(_)));
         assert_eq!(act.len(), 3);
         assert!(
             act.attributes().is_some(),
