@@ -1,4 +1,4 @@
-## Unreleased
+## 2.2.0
 - Add an opt-in `utf16-positions` feature for UTF-16 text lengths and slicing, matching
   Quill clients using UTF-16 for edit positions.
 
