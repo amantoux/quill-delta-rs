@@ -33,6 +33,15 @@ jobs:
       - name: Linting
         run: cargo clippy -- -D warnings
 
+      - name: Test default positions
+        run: cargo test
+
+      - name: Lint UTF-16 feature
+        run: cargo clippy --features utf16-positions -- -D warnings
+
+      - name: Test UTF-16 positions
+        run: cargo test --features utf16-positions
+
       - name: Build
         run: cargo build
 

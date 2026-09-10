@@ -132,10 +132,18 @@ impl Op {
         self.kind.clone()
     }
 
+    /// Text length in Unicode scalars, or UTF-16 code units with `utf16-positions`.
+    /// Embeds have length one.
     pub fn len(&self) -> usize {
         match &self.kind {
             OpKind::Insert(value) => match value {
-                Value::String(s) => s.chars().count(),
+                Value::String(s) => {
+                    if cfg!(feature = "utf16-positions") {
+                        s.encode_utf16().count()
+                    } else {
+                        s.chars().count()
+                    }
+                }
                 _ => 1,
             },
             OpKind::Retain(len) => *len,
@@ -166,7 +174,7 @@ impl Op {
             _ => panic!(
                 "Retrieving the value of an operation is possible \
                 only on INSERT operations; Try to get value of {:?}",
-                &self
+                self
             ),
         }
     }
@@ -180,14 +188,14 @@ impl Op {
                     panic!(
                         "Retrieving the text value of an operation is possible \
                         only on string INSERT operations; Try to get string value of {:?}",
-                        &self
+                        self
                     )
                 }
             }
             _ => panic!(
                 "Retrieving the text value of an operation is possible \
                 only on string INSERT operations; Try to get string value of {:?}",
-                &self
+                self
             ),
         }
     }
@@ -223,7 +231,7 @@ mod tests {
 
     use serde_json::{Value, json};
 
-    use crate::{AttributesMap, attributes};
+    use crate::AttributesMap;
 
     use crate::op::{Op, OpKind};
 

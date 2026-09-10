@@ -1,4 +1,4 @@
-use std::{cmp::min, fmt::Display};
+use std::{cmp::min, fmt::Display, string::FromUtf16Error};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -247,6 +247,26 @@ impl Delta {
     ///
     /// ```
     /// use quill_delta_rs::Delta;
+    /// let delta = Delta::new().insert("Hello", None);
+    /// assert_eq!(delta.slice(1, Some(4)), Delta::new().insert("ell", None));
+    /// ```
+    /// # Panics
+    ///
+    /// With `utf16-positions`, panics on a split surrogate pair. Use
+    /// [`Self::try_slice`] to handle the decoding error instead.
+    pub fn slice(&self, start: usize, end: Option<usize>) -> Delta {
+        self.try_slice(start, end).expect(
+            "UTF-16 operation boundary splits a surrogate pair; use try_slice to handle the error",
+        )
+    }
+
+    /// Fallible variant available in both feature modes. Returns a UTF-16
+    /// decoding error if a text boundary splits a surrogate pair.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use quill_delta_rs::Delta;
     /// use serde_json::json;
     ///
     /// let mut delta = Delta::new()
@@ -255,9 +275,10 @@ impl Delta {
     ///     .retain(4, None)
     ///     .insert(json!({"key": "value"}), None);
     /// let expected = Delta::new().insert("ext", None).delete(2);
-    /// assert_eq!(expected, delta.slice(1, Some(6)))
+    /// assert_eq!(expected, delta.try_slice(1, Some(6))?);
+    /// # Ok::<(), std::string::FromUtf16Error>(())
     /// ```
-    pub fn slice(&self, start: usize, end: Option<usize>) -> Self {
+    pub fn try_slice(&self, start: usize, end: Option<usize>) -> Result<Delta, FromUtf16Error> {
         let mut ops = Vec::new();
         let mut iter = crate::iter::Iterator::from(&self.ops);
         let mut index = 0;
@@ -265,15 +286,15 @@ impl Delta {
         while index < end && iter.has_next() {
             let next_op: Op;
             if index < start {
-                next_op = iter.next_len(start - index);
+                next_op = iter.try_next_len(start - index)?;
                 index += next_op.len();
             } else {
-                next_op = iter.next_len(end - index);
+                next_op = iter.try_next_len(end - index)?;
                 index += next_op.len();
                 ops.push(next_op);
             }
         }
-        Delta::from(ops)
+        Ok(Delta::from(ops))
     }
 
     /// Concatenate a [Delta] to the this one.
@@ -314,6 +335,26 @@ impl Delta {
     /// # Example
     ///
     /// ```
+    /// use quill_delta_rs::Delta;
+    /// let base = Delta::new().insert("Hello", None);
+    /// let edit = Delta::new().retain(5, None).insert("!", None);
+    /// assert_eq!(base.compose(&edit), Delta::new().insert("Hello!", None));
+    /// ```
+    /// # Panics
+    ///
+    /// With `utf16-positions`, panics on a split surrogate pair. Use
+    /// [`Self::try_compose`] to handle the decoding error instead.
+    pub fn compose(&self, other: &Delta) -> Delta {
+        self.try_compose(other)
+            .expect("UTF-16 operation boundary splits a surrogate pair; use try_compose to handle the error")
+    }
+
+    /// Fallible variant available in both feature modes. Returns a UTF-16
+    /// decoding error if a text boundary splits a surrogate pair.
+    ///
+    /// # Example
+    ///
+    /// ```
     /// use quill_delta_rs::{
     ///     Delta,
     ///     {attributes,AttributesMap},
@@ -340,9 +381,10 @@ impl Delta {
     ///     Op::insert("D", None),
     ///     Op::delete(1),
     /// ]);
-    /// assert_eq!(expected, a.compose(&b));
+    /// assert_eq!(expected, a.try_compose(&b)?);
+    /// # Ok::<(), std::string::FromUtf16Error>(())
     /// ```
-    pub fn compose(&self, other: &Delta) -> Delta {
+    pub fn try_compose(&self, other: &Delta) -> Result<Delta, FromUtf16Error> {
         let mut iter = Iterator::from(&self.ops);
         let mut other_iter = Iterator::from(&other.ops);
 
@@ -358,10 +400,10 @@ impl Delta {
                 && iter.peek_len() <= first_other_len_left
             {
                 first_other_len_left -= iter.peek_len();
-                combined_ops.push(iter.next().unwrap());
+                combined_ops.push(iter.try_next_len(usize::MAX)?);
             }
             if first_other.len() - first_other_len_left > 0 {
-                other_iter.next_len(first_other.len() - first_other_len_left);
+                other_iter.try_next_len(first_other.len() - first_other_len_left)?;
             }
         }
 
@@ -369,15 +411,15 @@ impl Delta {
 
         while iter.has_next() || other_iter.has_next() {
             if matches!(other_iter.peek_type(), OpKind::Insert(_)) {
-                let other_next = other_iter.next().unwrap();
+                let other_next = other_iter.try_next_len(usize::MAX)?;
                 delta.push(other_next);
             } else if matches!(iter.peek_type(), OpKind::Delete(_)) {
-                let self_next = iter.next().unwrap();
+                let self_next = iter.try_next_len(usize::MAX)?;
                 delta.push(self_next);
             } else {
                 let length = min(iter.peek_len(), other_iter.peek_len());
-                let self_op = iter.next_len(length);
-                let other_op = other_iter.next_len(length);
+                let self_op = iter.try_next_len(length)?;
+                let other_op = other_iter.try_next_len(length)?;
 
                 if other_op.is_retain() {
                     // Preserve null when composing with a retain, otherwise remove it for inserts
@@ -394,10 +436,10 @@ impl Delta {
                     delta.push(new_op.clone());
                     // Optimization if rest of other is just retain
                     if !other_iter.has_next() && delta.ops.last() == Some(&new_op) {
-                        let rest = Delta::from(iter.rest());
+                        let rest = Delta::from(iter.try_rest()?);
                         let mut delta = delta.concat(rest);
                         delta.chop();
-                        return delta;
+                        return Ok(delta);
                     }
                 } else if other_op.is_delete() && self_op.is_retain() {
                     delta.push(other_op);
@@ -405,13 +447,34 @@ impl Delta {
             }
         }
         delta.chop();
-        delta
+        Ok(delta)
     }
 
     /// Get the invert [Delta] of the this [Delta] on a `base` [Delta]
     ///
     /// The invert is such that composing `base` with `this` and composing this result with the
     /// invert results in the `base`
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use quill_delta_rs::Delta;
+    /// let base = Delta::new().insert("Hello", None);
+    /// let edit = Delta::new().retain(5, None).insert("!", None);
+    /// assert_eq!(base.compose(&edit).compose(&edit.invert(&base)), base);
+    /// ```
+    /// # Panics
+    ///
+    /// With `utf16-positions`, panics on a split surrogate pair. Use
+    /// [`Self::try_invert`] to handle the decoding error instead.
+    pub fn invert(&self, base: &Delta) -> Delta {
+        self.try_invert(base).expect(
+            "UTF-16 operation boundary splits a surrogate pair; use try_invert to handle the error",
+        )
+    }
+
+    /// Fallible variant available in both feature modes. Returns a UTF-16
+    /// decoding error if a text boundary splits a surrogate pair.
     ///
     /// # Examples
     ///
@@ -429,9 +492,10 @@ impl Delta {
     /// let delta = Delta::from(vec![Op::retain(2, None), Op::insert("A", None)]);
     /// let base = Delta::from(vec![Op::insert("123456", None)]);
     /// let expected = Delta::from(vec![Op::retain(2, None), Op::delete(1)]);
-    /// assert_eq!(expected, delta.invert(&base));
-    /// let inverted = delta.invert(&base);
-    /// assert_eq!(base, base.compose(&delta).compose(&inverted))
+    /// assert_eq!(expected, delta.try_invert(&base)?);
+    /// let inverted = delta.try_invert(&base)?;
+    /// assert_eq!(base, base.try_compose(&delta)?.try_compose(&inverted)?);
+    /// # Ok::<(), std::string::FromUtf16Error>(())
     /// ```
     ///
     /// ## Invert delete
@@ -441,15 +505,15 @@ impl Delta {
     ///     AttributesMap,
     ///     Op
     /// };
-    ///
     /// use serde_json::json;
     ///
     /// let delta = Delta::from(vec![Op::retain(2, None), Op::delete(3)]);
     /// let base = Delta::from(vec![Op::insert("123456", None)]);
     /// let expected = Delta::from(vec![Op::retain(2, None), Op::insert("345", None)]);
-    /// assert_eq!(expected, delta.invert(&base));
-    /// let inverted = delta.invert(&base);
-    /// assert_eq!(base, base.compose(&delta).compose(&inverted))
+    /// assert_eq!(expected, delta.try_invert(&base)?);
+    /// let inverted = delta.try_invert(&base)?;
+    /// assert_eq!(base, base.try_compose(&delta)?.try_compose(&inverted)?);
+    /// # Ok::<(), std::string::FromUtf16Error>(())
     /// ```
     ///
     /// ## Invert retain
@@ -460,7 +524,6 @@ impl Delta {
     ///     {attributes,AttributesMap},
     ///     Op
     /// };
-    ///
     /// use serde_json::Value;
     ///
     /// let delta = Delta::from(vec![
@@ -472,21 +535,23 @@ impl Delta {
     ///     Op::retain(2, None),
     ///     Op::retain(3, Some(attributes!("bold" => Value::Null))),
     /// ]);
-    /// let inverted = delta.invert(&base);
+    /// let inverted = delta.try_invert(&base)?;
     /// assert_eq!(expected, inverted);
-    /// assert_eq!(base, base.compose(&delta).compose(&inverted))
+    /// assert_eq!(base, base.try_compose(&delta)?.try_compose(&inverted)?);
+    /// # Ok::<(), std::string::FromUtf16Error>(())
     /// ```
-    pub fn invert(&self, base: &Delta) -> Delta {
+    pub fn try_invert(&self, base: &Delta) -> Result<Delta, FromUtf16Error> {
         let mut inverted = Delta::new();
-        self.fold(0, |base_index, op| {
+        let mut base_index = 0;
+        for op in &self.ops {
             if op.is_insert() {
                 inverted.push(Op::delete(op.len()));
             } else if op.is_retain() && op.attributes().is_none() {
                 inverted.push(Op::retain(op.len(), None));
-                return base_index + op.len();
+                base_index += op.len();
             } else if op.is_delete() || (op.is_retain() && !op.attributes.is_empty()) {
                 let length = op.len();
-                let slice = base.slice(base_index, Some(base_index + length));
+                let slice = base.try_slice(base_index, Some(base_index + length))?;
                 for base_op in slice.ops {
                     if op.is_delete() {
                         inverted.push(base_op);
@@ -497,12 +562,11 @@ impl Delta {
                         ));
                     }
                 }
-                return base_index + length;
+                base_index += length;
             }
-            base_index
-        });
+        }
         inverted.chop();
-        inverted
+        Ok(inverted)
     }
 }
 
@@ -525,9 +589,7 @@ impl Display for Delta {
 mod push_tests {
     use serde_json::Value;
 
-    use crate::{
-        Op, {AttributesMap, attributes},
-    };
+    use crate::{AttributesMap, Op};
 
     use super::Delta;
 
@@ -644,9 +706,7 @@ mod push_tests {
 mod helpers_tests {
     use serde_json::json;
 
-    use crate::{
-        Op, {AttributesMap, attributes},
-    };
+    use crate::{AttributesMap, Op};
 
     use super::Delta;
 
@@ -759,7 +819,7 @@ mod helpers_tests {
             .retain(4, None)
             .insert(json!({"key": "value"}), None);
         let expected = Delta::new().insert("ext", None).delete(2);
-        assert_eq!(expected, delta.slice(1, Some(6)))
+        assert_eq!(expected, delta.try_slice(1, Some(6)).unwrap())
     }
 
     #[test]
@@ -774,7 +834,7 @@ mod helpers_tests {
             .delete(3)
             .retain(4, None)
             .insert(json!({"key": "value"}), None);
-        assert_eq!(expected, delta.slice(1, None))
+        assert_eq!(expected, delta.try_slice(1, None).unwrap())
     }
 
     #[test]
@@ -813,9 +873,7 @@ mod compose_tests {
 
     use serde_json::Value;
 
-    use crate::{
-        Op, {AttributesMap, attributes},
-    };
+    use crate::{AttributesMap, Op};
 
     use super::Delta;
 
@@ -832,7 +890,7 @@ mod compose_tests {
         let a = Delta::from(vec![Op::insert("A", None)]);
         let b = Delta::from(vec![Op::insert("B", None)]);
         let expected = Delta::from(vec![Op::insert("BA", None)]);
-        assert_eq!(expected, a.compose(&b));
+        assert_eq!(expected, a.try_compose(&b).unwrap());
     }
 
     #[test]
@@ -850,14 +908,14 @@ mod compose_tests {
             "A",
             Some(attributes!("bold" => true, "color" => "red")),
         )]);
-        assert_eq!(expected, a.compose(&b))
+        assert_eq!(expected, a.try_compose(&b).unwrap())
     }
 
     #[test]
     fn insert_delete() {
         let a = Delta::from(vec![Op::insert("A", None)]);
         let b = Delta::from(vec![Op::delete(1)]);
-        assert_eq!(Delta::new(), a.compose(&b));
+        assert_eq!(Delta::new(), a.try_compose(&b).unwrap());
     }
 
     #[test]
@@ -865,7 +923,7 @@ mod compose_tests {
         let a = Delta::from(vec![Op::delete(1)]);
         let b = Delta::from(vec![Op::insert("B", None)]);
         let expected = Delta::from(vec![Op::insert("B", None), Op::delete(1)]);
-        assert_eq!(expected, a.compose(&b));
+        assert_eq!(expected, a.try_compose(&b).unwrap());
     }
 
     #[test]
@@ -879,14 +937,14 @@ mod compose_tests {
             Op::delete(1),
             Op::retain(1, Some(attributes!("bold" => true, "color" => "red"))),
         ]);
-        assert_eq!(expected, a.compose(&b))
+        assert_eq!(expected, a.try_compose(&b).unwrap())
     }
 
     #[test]
     fn delete_delete() {
         let a = Delta::from(vec![Op::delete(1)]);
         let b = Delta::from(vec![Op::delete(1)]);
-        assert_eq!(Delta::from(vec![Op::delete(2)]), a.compose(&b))
+        assert_eq!(Delta::from(vec![Op::delete(2)]), a.try_compose(&b).unwrap())
     }
 
     #[test]
@@ -897,7 +955,7 @@ mod compose_tests {
             Op::insert("B", None),
             Op::retain(1, Some(attributes!("color" => "blue"))),
         ]);
-        assert_eq!(expected, a.compose(&b));
+        assert_eq!(expected, a.try_compose(&b).unwrap());
     }
 
     #[test]
@@ -919,21 +977,24 @@ mod compose_tests {
                 "fonr" => None::<&str>,
             )),
         )]);
-        assert_eq!(expected, a.compose(&b))
+        assert_eq!(expected, a.try_compose(&b).unwrap())
     }
 
     #[test]
     fn retain_delete() {
         let a = Delta::from(vec![Op::retain(1, Some(attributes!("color" => "blue")))]);
         let b = Delta::from(vec![Op::delete(1)]);
-        assert_eq!(Delta::from(vec![Op::delete(1)]), a.compose(&b))
+        assert_eq!(Delta::from(vec![Op::delete(1)]), a.try_compose(&b).unwrap())
     }
 
     #[test]
     fn insert_in_middle_of_text() {
         let a = Delta::from(vec![Op::insert("Hello", None)]);
         let b = Delta::from(vec![Op::retain(3, None), Op::insert("x", None)]);
-        assert_eq!(Delta::from(vec![Op::insert("Helxlo", None)]), a.compose(&b))
+        assert_eq!(
+            Delta::from(vec![Op::insert("Helxlo", None)]),
+            a.try_compose(&b).unwrap()
+        )
     }
 
     #[test]
@@ -950,8 +1011,8 @@ mod compose_tests {
             Op::insert("X", None),
         ]);
         let expected = Delta::from(vec![Op::insert("HelXo", None)]);
-        assert_eq!(expected, a.compose(&insert_first));
-        assert_eq!(expected, a.compose(&delete_first));
+        assert_eq!(expected, a.try_compose(&insert_first).unwrap());
+        assert_eq!(expected, a.try_compose(&delete_first).unwrap());
     }
 
     #[test]
@@ -965,28 +1026,28 @@ mod compose_tests {
             empty_embed(),
             Some(attributes!("src" => "https://www.mozilla.org", "alt" => "Mozilla")),
         )]);
-        assert_eq!(expected, a.compose(&b));
+        assert_eq!(expected, a.try_compose(&b).unwrap());
     }
 
     #[test]
     fn delete_entire_text() {
         let a = Delta::from(vec![Op::retain(4, None), Op::insert("Hello", None)]);
         let b = Delta::from(vec![Op::delete(9)]);
-        assert_eq!(Delta::from(vec![Op::delete(4)]), a.compose(&b));
+        assert_eq!(Delta::from(vec![Op::delete(4)]), a.try_compose(&b).unwrap());
     }
 
     #[test]
     fn retain_more_than_text_length() {
         let a = Delta::from(vec![Op::insert("Hello", None)]);
         let b = Delta::from(vec![Op::retain(10, None)]);
-        assert_eq!(a, a.compose(&b))
+        assert_eq!(a, a.try_compose(&b).unwrap())
     }
 
     #[test]
     fn retain_empty_embed() {
         let a = Delta::from(vec![Op::insert(empty_embed(), None)]);
         let b = Delta::from(vec![Op::retain(1, None)]);
-        assert_eq!(a, a.compose(&b))
+        assert_eq!(a, a.try_compose(&b).unwrap())
     }
 
     #[test]
@@ -996,7 +1057,10 @@ mod compose_tests {
             1,
             Some(attributes!("bold" => None::<&str>)),
         )]);
-        assert_eq!(Delta::from(vec![Op::insert("A", None)]), a.compose(&b));
+        assert_eq!(
+            Delta::from(vec![Op::insert("A", None)]),
+            a.try_compose(&b).unwrap()
+        );
     }
 
     #[test]
@@ -1011,7 +1075,7 @@ mod compose_tests {
         )]);
         assert_eq!(
             Delta::from(vec![Op::insert(empty_embed(), None)]),
-            a.compose(&b)
+            a.try_compose(&b).unwrap()
         );
     }
 
@@ -1031,7 +1095,7 @@ mod compose_tests {
             Op::insert("T", Some(attributes!("color" => "red", "bold" => true))),
             Op::insert("t", Some(attributes!("bold" => true))),
         ]);
-        assert_eq!(expected, a1.compose(&b1));
+        assert_eq!(expected, a1.try_compose(&b1).unwrap());
         assert_eq!(a1, a2);
         assert_eq!(b1, b2);
     }
@@ -1052,7 +1116,7 @@ mod compose_tests {
             Op::insert("D", None),
             Op::delete(1),
         ]);
-        assert_eq!(expected, a.compose(&b));
+        assert_eq!(expected, a.try_compose(&b).unwrap());
     }
 
     #[test]
@@ -1074,7 +1138,7 @@ mod compose_tests {
             Op::retain(4, None),
             Op::delete(1),
         ]);
-        assert_eq!(expected, a.compose(&b))
+        assert_eq!(expected, a.try_compose(&b).unwrap())
     }
 
     #[test]
@@ -1089,7 +1153,7 @@ mod compose_tests {
             Op::insert("B", None),
             Op::insert("C", Some(attributes!("bold" => true))),
         ]);
-        assert_eq!(expected, a.compose(&b));
+        assert_eq!(expected, a.try_compose(&b).unwrap());
     }
 
     #[test]
@@ -1107,16 +1171,14 @@ mod compose_tests {
             Op::insert("D", None),
             Op::insert("E", Some(attributes!("bold" => true))),
         ]);
-        assert_eq!(expected, a.compose(&b))
+        assert_eq!(expected, a.try_compose(&b).unwrap())
     }
 }
 
 #[cfg(test)]
 mod invert_tests {
 
-    use crate::{
-        Op, {AttributesMap, attributes},
-    };
+    use crate::{AttributesMap, Op};
 
     use super::Delta;
 
@@ -1125,9 +1187,15 @@ mod invert_tests {
         let delta = Delta::from(vec![Op::retain(2, None), Op::insert("A", None)]);
         let base = Delta::from(vec![Op::insert("123456", None)]);
         let expected = Delta::from(vec![Op::retain(2, None), Op::delete(1)]);
-        assert_eq!(expected, delta.invert(&base));
-        let inverted = delta.invert(&base);
-        assert_eq!(base, base.compose(&delta).compose(&inverted))
+        assert_eq!(expected, delta.try_invert(&base).unwrap());
+        let inverted = delta.try_invert(&base).unwrap();
+        assert_eq!(
+            base,
+            base.try_compose(&delta)
+                .unwrap()
+                .try_compose(&inverted)
+                .unwrap()
+        )
     }
 
     #[test]
@@ -1135,9 +1203,15 @@ mod invert_tests {
         let delta = Delta::from(vec![Op::retain(2, None), Op::delete(3)]);
         let base = Delta::from(vec![Op::insert("123456", None)]);
         let expected = Delta::from(vec![Op::retain(2, None), Op::insert("345", None)]);
-        assert_eq!(expected, delta.invert(&base));
-        let inverted = delta.invert(&base);
-        assert_eq!(base, base.compose(&delta).compose(&inverted))
+        assert_eq!(expected, delta.try_invert(&base).unwrap());
+        let inverted = delta.try_invert(&base).unwrap();
+        assert_eq!(
+            base,
+            base.try_compose(&delta)
+                .unwrap()
+                .try_compose(&inverted)
+                .unwrap()
+        )
     }
 
     #[test]
@@ -1151,9 +1225,15 @@ mod invert_tests {
             Op::retain(2, None),
             Op::retain(3, Some(attributes!("bold" => None::<&str>))),
         ]);
-        let inverted = delta.invert(&base);
+        let inverted = delta.try_invert(&base).unwrap();
         assert_eq!(expected, inverted);
-        assert_eq!(base, base.compose(&delta).compose(&inverted))
+        assert_eq!(
+            base,
+            base.try_compose(&delta)
+                .unwrap()
+                .try_compose(&inverted)
+                .unwrap()
+        )
     }
 
     #[test]
@@ -1167,9 +1247,15 @@ mod invert_tests {
             4,
             Some(attributes!("italic" => None::<&str>)),
         )]);
-        assert_eq!(expected, delta.invert(&base));
-        let inverted = delta.invert(&base);
-        assert_eq!(base, base.compose(&delta).compose(&inverted))
+        assert_eq!(expected, delta.try_invert(&base).unwrap());
+        let inverted = delta.try_invert(&base).unwrap();
+        assert_eq!(
+            base,
+            base.try_compose(&delta)
+                .unwrap()
+                .try_compose(&inverted)
+                .unwrap()
+        )
     }
 
     #[test]
@@ -1202,8 +1288,237 @@ mod invert_tests {
             Op::retain(2, None),
             Op::insert("9", Some(attributes!("color" => "red", "bold" => true))),
         ]);
-        assert_eq!(expected, delta.invert(&base));
-        let inverted = delta.invert(&base);
-        assert_eq!(base, base.compose(&delta).compose(&inverted))
+        assert_eq!(expected, delta.try_invert(&base).unwrap());
+        let inverted = delta.try_invert(&base).unwrap();
+        assert_eq!(
+            base,
+            base.try_compose(&delta)
+                .unwrap()
+                .try_compose(&inverted)
+                .unwrap()
+        )
+    }
+}
+
+#[cfg(test)]
+mod api_compatibility {
+    use crate::{Delta, Iterator, Op};
+
+    // These exact public types must compile with and without utf16-positions.
+    #[test]
+    fn legacy_signatures_are_feature_independent() {
+        let base = Delta::new().insert("A🙄B", None);
+        let edit = Delta::new().retain(1, None).insert("!", None);
+        let updated: Delta = base.compose(&edit);
+        let inverse: Delta = edit.invert(&base);
+        assert_eq!(updated.compose(&inverse), base);
+        let prefix: Delta = base.slice(0, Some(1));
+        assert_eq!(prefix, Delta::new().insert("A", None));
+        let mut iter = Iterator::from(base.ops());
+        let first: Op = iter.next_len(1);
+        assert_eq!(first, Op::insert("A", None));
+        let rest: Vec<Op> = iter.rest();
+        assert_eq!(rest, vec![Op::insert("🙄B", None)]);
+        let next: Option<Op> = iter.next();
+        assert_eq!(next, Some(Op::insert("🙄B", None)));
+    }
+
+    #[test]
+    fn fallible_signatures_are_feature_independent() -> Result<(), std::string::FromUtf16Error> {
+        let base = Delta::new().insert("A🙄B", None);
+        let edit = Delta::new().retain(1, None).insert("!", None);
+        let updated = base.try_compose(&edit)?;
+        assert_eq!(updated.try_compose(&edit.try_invert(&base)?)?, base);
+        assert_eq!(base.try_slice(0, Some(1))?, Delta::new().insert("A", None));
+        let mut iter = Iterator::from(base.ops());
+        assert_eq!(iter.try_next_len(1)?, Op::insert("A", None));
+        assert_eq!(iter.try_rest()?, vec![Op::insert("🙄B", None)]);
+        Ok(())
+    }
+}
+
+#[cfg(all(test, feature = "utf16-positions"))]
+mod utf16_positions {
+    use crate::{AttributesMap, Delta, Iterator, Op};
+    use serde_json::json;
+
+    #[test]
+    fn lengths_and_slices_use_utf16() {
+        assert_eq!(Op::insert("é🙄e\u{301}👩‍💻", None).len(), 10);
+        assert_eq!(Op::insert(json!({"image": "x"}), None).len(), 1);
+        let doc = Delta::new().insert("A🙄B\n", None);
+        assert_eq!(doc.len(), 5);
+        assert_eq!(
+            doc.try_slice(1, Some(3)).unwrap(),
+            Delta::new().insert("🙄", None)
+        );
+        assert_eq!(
+            doc.try_slice(3, Some(5)).unwrap(),
+            Delta::new().insert("B\n", None)
+        );
+        let mut iter = Iterator::from(doc.ops());
+        assert_eq!(iter.try_next_len(1).unwrap(), Op::insert("A", None));
+        assert_eq!(iter.try_next_len(2).unwrap(), Op::insert("🙄", None));
+        assert_eq!(iter.peek_len(), 2);
+        assert_eq!(iter.try_rest().unwrap(), vec![Op::insert("B\n", None)]);
+    }
+
+    #[test]
+    fn repeated_note_edits_preserve_paragraphs_and_history() {
+        let base = Delta::new()
+            .insert("🙄\nBG\n", None)
+            .insert("Mathematiques", None)
+            .insert("\n", Some(attributes!("header" => 1)));
+        let first = Delta::new().retain(5, None).insert("!", None);
+        let middle = base.try_compose(&first).unwrap();
+        let expected_middle = Delta::new()
+            .insert("🙄\nBG!\nMathematiques", None)
+            .insert("\n", Some(attributes!("header" => 1)));
+        assert_eq!(middle, expected_middle);
+        assert_eq!(
+            middle
+                .try_compose(&first.try_invert(&base).unwrap())
+                .unwrap(),
+            base
+        );
+        let second = Delta::new()
+            .retain(3, None)
+            .delete(3)
+            .insert("Bravo 👩‍💻", None);
+        let final_doc = middle.try_compose(&second).unwrap();
+        let expected = Delta::new()
+            .insert("🙄\nBravo 👩‍💻\nMathematiques", None)
+            .insert("\n", Some(attributes!("header" => 1)));
+        assert_eq!(final_doc, expected);
+        assert_eq!(
+            base.try_compose(&first.try_compose(&second).unwrap())
+                .unwrap(),
+            expected
+        );
+        assert_eq!(
+            final_doc
+                .try_compose(&second.try_invert(&middle).unwrap())
+                .unwrap(),
+            middle
+        );
+    }
+
+    #[test]
+    fn emoji_deletion_and_formatting_round_trip() {
+        let base = Delta::new().insert("A🙄B\n", None);
+        let delete = Delta::new().retain(1, None).delete(2);
+        let deleted = base.try_compose(&delete).unwrap();
+        assert_eq!(deleted, Delta::new().insert("AB\n", None));
+        assert_eq!(
+            deleted
+                .try_compose(&delete.try_invert(&base).unwrap())
+                .unwrap(),
+            base
+        );
+        let format = Delta::new()
+            .retain(1, None)
+            .retain(2, Some(attributes!("bold" => true)));
+        let formatted = base.try_compose(&format).unwrap();
+        assert_eq!(
+            formatted,
+            Delta::new()
+                .insert("A", None)
+                .insert("🙄", Some(attributes!("bold" => true)))
+                .insert("B\n", None)
+        );
+        assert_eq!(
+            formatted
+                .try_compose(&format.try_invert(&base).unwrap())
+                .unwrap(),
+            base
+        );
+    }
+
+    #[test]
+    fn invalid_surrogate_boundary_does_not_advance_iterator() {
+        let ops = vec![Op::insert("🙄x", None)];
+        let mut iter = Iterator::from(&ops);
+        let failure = iter.try_next_len(1);
+        assert!(failure.is_err());
+        assert_eq!(iter.peek_len(), 3);
+        assert_eq!(iter.try_next_len(2).unwrap(), Op::insert("🙄", None));
+        assert_eq!(iter.try_next_len(1).unwrap(), Op::insert("x", None));
+    }
+
+    #[test]
+    fn public_operations_propagate_split_pair_errors() {
+        let base = Delta::new().insert("A🙄B", None);
+        let original = base.clone();
+        assert!(base.try_slice(1, Some(2)).is_err());
+        assert!(base.try_slice(2, Some(3)).is_err());
+        let edit = Delta::new().retain(2, None).insert("!", None);
+        assert!(base.try_compose(&edit).is_err());
+        let delete = Delta::new().retain(1, None).delete(1);
+        assert!(delete.try_invert(&base).is_err());
+        let format = Delta::new()
+            .retain(1, None)
+            .retain(1, Some(attributes!("bold" => true)));
+        assert!(format.try_invert(&base).is_err());
+        assert_eq!(base, original);
+    }
+
+    #[test]
+    fn legacy_wrapper_panics_without_advancing_on_invalid_boundary() {
+        let ops = vec![Op::insert("🙄x", None)];
+        let mut iter = Iterator::from(&ops);
+        let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| iter.next_len(1)));
+        assert!(failure.is_err());
+        assert_eq!(iter.peek_len(), 3);
+        assert_eq!(iter.next_len(2), Op::insert("🙄", None));
+    }
+}
+
+#[cfg(all(test, not(feature = "utf16-positions")))]
+mod scalar_positions {
+    use crate::{AttributesMap, Delta, Iterator, Op};
+    use serde_json::json;
+
+    #[test]
+    fn default_positions_count_scalars_not_bytes() {
+        assert_eq!(Op::insert("é🙄e\u{301}👩‍💻", None).len(), 7);
+        assert_eq!(Op::insert(json!({"image": "x"}), None).len(), 1);
+        let base = Delta::new().insert("é🙄B\n", None);
+        assert_eq!(base.len(), 4);
+        assert_eq!(base.slice(1, Some(2)), Delta::new().insert("🙄", None));
+        let mut iter = Iterator::from(base.ops());
+        assert_eq!(iter.next_len(1), Op::insert("é", None));
+        assert_eq!(iter.next_len(1), Op::insert("🙄", None));
+        assert_eq!(iter.rest(), vec![Op::insert("B\n", None)]);
+    }
+
+    #[test]
+    fn scalar_edits_and_formatting_round_trip() {
+        let base = Delta::new()
+            .insert("é🙄B", None)
+            .insert("\n", Some(attributes!("header" => 1)));
+        let first = Delta::new().retain(2, None).insert("!", None);
+        let middle = base.compose(&first);
+        assert_eq!(
+            middle,
+            Delta::new()
+                .insert("é🙄!B", None)
+                .insert("\n", Some(attributes!("header" => 1)))
+        );
+        let second = Delta::new()
+            .retain(1, None)
+            .delete(1)
+            .retain(1, Some(attributes!("bold" => true)));
+        let end = middle.compose(&second);
+        assert_eq!(
+            end,
+            Delta::new()
+                .insert("é", None)
+                .insert("!", Some(attributes!("bold" => true)))
+                .insert("B", None)
+                .insert("\n", Some(attributes!("header" => 1)))
+        );
+        assert_eq!(base.compose(&first.compose(&second)), end);
+        assert_eq!(end.compose(&second.invert(&middle)), middle);
+        assert_eq!(middle.compose(&first.invert(&base)), base);
     }
 }

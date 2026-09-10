@@ -1,4 +1,4 @@
-use std::iter;
+use std::{iter, string::FromUtf16Error};
 
 use serde_json::Value;
 
@@ -60,29 +60,59 @@ impl<'it> Iterator<'it> {
     /// assert_eq!(Op::insert(json!({"key": "value"}), None), iter.next_len(10));
     /// assert_eq!(Op::retain_until_end(), iter.next_len(1))
     /// ```
+    /// Length and offsets count Unicode scalars by default, or UTF-16 code
+    /// units with the `utf16-positions` feature.
+    ///
+    /// # Panics
+    ///
+    /// With `utf16-positions`, panics if a boundary splits a surrogate pair. Use
+    /// [`Self::try_next_len`] to handle this error without panicking.
+    /// The iterator is unchanged on this error.
     pub fn next_len(&mut self, length: usize) -> Op {
+        self.try_next_len(length)
+            .expect("UTF-16 operation boundary splits a surrogate pair; use try_next_len to handle the error")
+    }
+
+    /// Fallible read in either feature mode. A split surrogate pair returns an
+    /// error without advancing the iterator. Scalar mode always returns `Ok`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use quill_delta_rs::{Iterator, Op};
+    /// let ops = vec![Op::insert("Hello", None)];
+    /// let mut iter = Iterator::from(&ops);
+    /// assert_eq!(iter.try_next_len(2)?, Op::insert("He", None));
+    /// # Ok::<(), std::string::FromUtf16Error>(())
+    /// ```
+    pub fn try_next_len(&mut self, length: usize) -> Result<Op, FromUtf16Error> {
         if self.index >= self.ops.len() {
-            return Op::retain_until_end();
+            return Ok(Op::retain_until_end());
         }
 
-        let mut length = length;
         let next_op = self.ops.get(self.index).unwrap();
         let init_offset = self.offset;
         let op_len = next_op.len();
+        let length = length.min(op_len - init_offset);
 
-        if length >= op_len - init_offset {
-            length = op_len - init_offset;
-            self.index += 1;
-            self.offset = 0;
-        } else {
-            self.offset += length;
-        }
-
-        if next_op.is_delete() {
+        // Build the operation before advancing: an invalid UTF-16 boundary must
+        // not leave the iterator partly consumed when returning an error.
+        let op = if next_op.is_delete() {
             Op::delete(length)
         } else if next_op.is_retain() {
             Op::retain(length, next_op.attributes())
         } else if next_op.is_text_insert() {
+            #[cfg(feature = "utf16-positions")]
+            let sub_string = {
+                let units: Vec<u16> = next_op
+                    .value_as_string()
+                    .encode_utf16()
+                    .skip(init_offset)
+                    .take(length)
+                    .collect();
+                String::from_utf16(&units)?
+            };
+            #[cfg(not(feature = "utf16-positions"))]
             let sub_string: String = next_op
                 .value_as_string()
                 .chars()
@@ -92,7 +122,15 @@ impl<'it> Iterator<'it> {
             Op::insert(Value::from(sub_string), next_op.attributes())
         } else {
             Op::insert(next_op.value(), next_op.attributes())
+        };
+
+        if length == op_len - init_offset {
+            self.index += 1;
+            self.offset = 0;
+        } else {
+            self.offset += length;
         }
+        Ok(op)
     }
 
     /// Get current [Op].
@@ -160,25 +198,48 @@ impl<'it> Iterator<'it> {
     ///     iter.rest()
     /// );
     /// ```
+    /// # Panics
+    ///
+    /// With `utf16-positions`, panics on a split surrogate pair. Use
+    /// [`Self::try_rest`] to handle the decoding error instead.
     pub fn rest(&mut self) -> Vec<Op> {
+        self.try_rest().expect(
+            "UTF-16 operation boundary splits a surrogate pair; use try_rest to handle the error",
+        )
+    }
+
+    /// Returns the remaining operations without consuming the iterator.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use quill_delta_rs::{Iterator, Op};
+    /// let ops = vec![Op::insert("Hello", None)];
+    /// let mut iter = Iterator::from(&ops);
+    /// iter.try_next_len(2)?;
+    /// assert_eq!(iter.try_rest()?, vec![Op::insert("llo", None)]);
+    /// assert_eq!(iter.peek_len(), 3);
+    /// # Ok::<(), std::string::FromUtf16Error>(())
+    /// ```
+    pub fn try_rest(&mut self) -> Result<Vec<Op>, FromUtf16Error> {
         if !self.has_next() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
 
         if self.offset == 0 {
             let slice = &self.ops.as_slice()[self.index..self.ops.len()];
-            return Vec::from(slice);
+            return Ok(Vec::from(slice));
         }
 
         let init_offset = self.offset;
         let init_index = self.index;
-        let next_op = self.next().unwrap();
+        let next_op = self.try_next_len(usize::MAX)?;
         let mut rest = Vec::from(&self.ops.as_slice()[self.index..self.ops.len()]);
         self.offset = init_offset;
         self.index = init_index;
         let mut returned = vec![next_op];
         returned.append(&mut rest);
-        returned
+        Ok(returned)
     }
 }
 
@@ -196,8 +257,8 @@ mod tests {
     use serde_json::json;
 
     use crate::{
+        AttributesMap,
         op::{Op, OpKind},
-        {AttributesMap, attributes},
     };
 
     use super::Iterator;
