@@ -8,6 +8,9 @@ homepage = "https://github.com/amantoux/quill-delta-rs"
 repository = "https://github.com/amantoux/quill-delta-rs"
 readme = "README.md"
 
+[features]
+utf16-positions = []
+
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }

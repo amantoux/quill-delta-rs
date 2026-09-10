@@ -1,3 +1,7 @@
+## Unreleased
+- Add an opt-in `utf16-positions` feature for UTF-16 text lengths and slicing, matching
+  Quill clients using UTF-16 for edit positions.
+
 ## 2.1.0
 - Remove serde_derive dependency from Cargo.toml
 - Use references when relevant & avoid cloning
